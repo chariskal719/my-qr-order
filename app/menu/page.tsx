@@ -250,30 +250,75 @@ const handleStripeSetup = async () => {
 
   return (
     <div className="min-h-screen bg-[#FDFCF0] text-[#4A0404] pb-32 font-sans">
-      <header className="p-6 border-b border-[#EADDCA] bg-white/80 sticky top-0 z-50">
-        <h1 className="text-2xl font-serif font-black text-[#800020]">VINTAGE BISTRO</h1>
-        <p className="text-xs font-bold opacity-60">ΤΡΑΠΕΖΙ {tableNumber}</p>
-      </header>
+      
+      {/* --- STICKY HEADER & CATEGORIES (PRO UI) --- */}
+      <div className="sticky top-0 z-40 bg-[#FDFCF0] shadow-sm">
+        <header className="px-5 py-4 flex justify-between items-center max-w-2xl mx-auto"></header>
+    
+    {/* --- STICKY HEADER & CATEGORIES (PRO UI) --- */}
+      <div className="sticky top-0 z-40 bg-[#FDFCF0] shadow-sm">
+        <header className="px-5 py-4 flex justify-between items-center max-w-2xl mx-auto">
+          <div>
+            <h1 className="text-2xl font-serif font-black text-[#800020] tracking-tight">VINTAGE BISTRO</h1>
+            <p className="text-xs font-bold opacity-60 uppercase tracking-widest text-[#800020]">Τραπεζι {tableNumber}</p>
+          </div>
+          {/* Μια διακριτική ένδειξη γλώσσας δίνει κύρος */}
+          <div className="text-[#800020] text-xs font-bold flex gap-1 bg-white px-2 py-1 rounded-md border border-[#EADDCA]">
+            <span>EN</span><span className="opacity-30">|</span><span className="opacity-50">GR</span>
+          </div>
+        </header>
 
-      <main className="p-5 max-w-2xl mx-auto space-y-4">
-        <div className="flex gap-3 overflow-x-auto pb-6 no-scrollbar">
-          {['Προτεινόμενα', 'Σαλάτες', 'Κυρίως', 'Ποτά'].map((cat) => (
-            <button key={cat} onClick={() => setSelectedCategory(cat)} className={`whitespace-nowrap px-6 py-2.5 rounded-full text-sm font-bold border transition-colors ${selectedCategory === cat ? 'bg-[#800020] text-white border-[#800020]' : 'bg-white text-[#800020] border-[#EADDCA]'}`}>
-              {cat}
-            </button>
-          ))}
+        <div className="px-5 pb-3 max-w-2xl mx-auto">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar items-center pb-2">
+            {['Προτεινόμενα', 'Σαλάτες', 'Κυρίως', 'Ποτά'].map((cat) => (
+              <button 
+                key={cat} 
+                onClick={() => setSelectedCategory(cat)} 
+                className={`whitespace-nowrap px-5 py-2 rounded-xl text-sm font-bold transition-all ${
+                  selectedCategory === cat 
+                  ? 'bg-[#800020] text-[#FDFCF0] shadow-md scale-105' 
+                  : 'bg-white text-[#800020] border border-[#EADDCA] hover:bg-[#FDFCF0]'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
         </div>
+        <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#EADDCA] to-transparent"></div>
+      </div>
+      </div>
 
+      <main className="p-5 max-w-2xl mx-auto space-y-4 pt-4">
+
+        {/* --- PREMIUM PRODUCT CARDS --- */}
         {displayedItems.map((item) => (
-          <div key={item.id} className="bg-white p-5 rounded-[28px] border border-[#EADDCA] flex justify-between items-center shadow-sm">
-            <div>
-              <h3 className="font-bold">{item.name}</h3>
-              <p className="text-[#800020] font-black">{item.price.toFixed(2)}€</p>
+          <div key={item.id} className="bg-white p-4 rounded-3xl border border-[#EADDCA] flex gap-4 shadow-sm relative overflow-hidden transition-all hover:shadow-md">
+            
+            {/* Placeholder για μελλοντικές φωτογραφίες */}
+            <div className="w-[84px] h-[84px] bg-[#FDFCF0] rounded-2xl flex items-center justify-center flex-shrink-0 border border-[#EADDCA]">
+              <span className="text-3xl opacity-50">🍽️</span>
             </div>
-            <div className="flex items-center gap-3 bg-[#FDFCF0] p-1 rounded-2xl border border-[#EADDCA]">
-              {cart[item.id] > 0 && <button onClick={() => removeFromCart(item.id)} className="w-8 h-8 font-bold text-[#800020]">-</button>}
-              {cart[item.id] > 0 && <span className="font-bold">{cart[item.id]}</span>}
-              <button onClick={() => addToCart(item.id)} className="bg-[#800020] text-white w-8 h-8 rounded-xl active:scale-95 transition-transform">+</button>
+
+            <div className="flex flex-col justify-center flex-grow pr-2">
+              <h3 className="font-bold text-[#800020] text-[17px] leading-tight">{item.name}</h3>
+              {/* Εδώ εμφανίζουμε επιτέλους την περιγραφή που είχες στα δεδομένα σου! */}
+              <p className="text-xs text-gray-500 mt-1.5 leading-snug line-clamp-2">{item.description}</p>
+              <p className="font-black text-[15px] mt-2">{item.price.toFixed(2)}€</p>
+            </div>
+
+            <div className="flex flex-col items-end justify-center min-w-[40px]">
+              {cart[item.id] > 0 ? (
+                <div className="flex flex-col items-center justify-between bg-[#FDFCF0] rounded-full border border-[#EADDCA] h-full py-1">
+                  <button onClick={() => addToCart(item.id)} className="w-8 h-8 flex items-center justify-center text-[#800020] font-bold text-xl active:scale-95">+</button>
+                  <span className="font-bold text-[#800020] text-sm my-1">{cart[item.id]}</span>
+                  <button onClick={() => removeFromCart(item.id)} className="w-8 h-8 flex items-center justify-center text-[#800020] font-bold text-xl active:scale-95">-</button>
+                </div>
+              ) : (
+                <button onClick={() => addToCart(item.id)} className="bg-[#FDFCF0] border border-[#EADDCA] text-[#800020] w-10 h-10 rounded-full font-bold active:scale-95 transition-transform flex items-center justify-center shadow-sm">
+                  <span className="text-2xl mb-0.5">+</span>
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -302,15 +347,44 @@ const handleStripeSetup = async () => {
         )}
       </main>
 
+      {/* --- PROFESSIONAL FOOTER --- */}
+      <footer className="p-10 pb-40 text-center space-y-4">
+        <div className="flex justify-center gap-6 text-[11px] font-bold text-[#800020] opacity-40 uppercase tracking-widest">
+          <button className="hover:opacity-100">Όροι Χρήσης</button>
+          <button className="hover:opacity-100">Πολιτική Απορρήτου</button>
+          <button className="hover:opacity-100">Υποστήριξη</button>
+        </div>
+        
+        <div className="pt-4 border-t border-[#EADDCA] max-w-[150px] mx-auto opacity-20"></div>
+        
+        <p className="text-[10px] font-medium text-gray-400">
+          © 2026 QuickSplit Hospitality Solutions.<br/>
+          Built for <span className="text-[#800020] font-bold">Vintage Bistro</span>
+        </p>
+      </footer>
+
+        {/* --- STICKY BOTTOM BAR (PRO UI) --- */}
       {Object.keys(cart).length > 0 && !showCartModal && (
-        <div className="fixed bottom-8 left-0 right-0 px-6 z-50">
-          <button onClick={() => setShowCartModal(true)} className="w-full bg-[#800020] text-white p-5 rounded-[24px] font-bold shadow-2xl flex justify-between items-center active:scale-[0.98] transition-transform">
-             <div className="flex items-center gap-4">
-                <div className="bg-white/20 w-8 h-8 rounded-lg flex items-center justify-center">{cartItemCount}</div>
-                <span>Προβολή Παραγγελίας</span>
-             </div>
-             <span className="text-lg">{totalInCart.toFixed(2)}€</span>
+        <div className="fixed bottom-0 left-0 right-0 bg-[#121212] border-t border-gray-800 p-4 pb-6 z-50 flex justify-between items-center rounded-t-3xl shadow-[0_-15px_40px_rgba(0,0,0,0.4)] md:max-w-2xl md:mx-auto animate-in slide-in-from-bottom-10">
+          
+          {/* Το αλλάξαμε σε button για να φύγει το warning */}
+          <button className="flex flex-col pl-2 text-left" onClick={() => setShowCartModal(true)}>
+            <span className="text-gray-400 text-sm font-medium">Καλάθι • {cartItemCount} είδη</span>
+            <span className="text-[#deff9a] font-bold text-2xl tracking-tight">
+              {totalInCart.toFixed(2)}€
+            </span>
           </button>
+
+          <button 
+            onClick={() => setShowCartModal(true)}
+            className="bg-[#deff9a] text-[#121212] px-8 py-3.5 rounded-full font-bold text-lg shadow-[0_0_20px_rgba(222,255,154,0.3)] transition-all active:scale-95 flex items-center gap-2"
+          >
+            Πληρωμή
+            <span className="bg-[#121212] text-[#deff9a] w-6 h-6 rounded-full flex items-center justify-center text-sm">
+               →
+            </span>
+          </button>
+
         </div>
       )}
 
@@ -460,6 +534,25 @@ const handleStripeSetup = async () => {
           <button onClick={handleCashPayment} className="w-full border-2 border-[#800020] text-[#800020] py-4 rounded-2xl font-bold mt-2 hover:bg-white active:scale-95 transition-transform">
             💵 Μετρητά
           </button>
+        </div>
+                {/* --- PAYMENT TRUST SECTION --- */}
+        <div className="mt-8 pt-6 border-t border-[#EADDCA] text-center">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-4">Secure Payment Partners</p>
+          
+          <div className="flex justify-center items-center gap-5 opacity-40 grayscale hover:grayscale-0 transition-all duration-500">
+            {/* Χρησιμοποιούμε απλά SVGs ή icons για μέγιστη ταχύτητα */}
+            <i className="fab fa-cc-visa text-2xl"></i>
+            <i className="fab fa-cc-mastercard text-2xl"></i>
+            <i className="fab fa-apple-pay text-3xl"></i>
+            <i className="fab fa-google-pay text-3xl"></i>
+          </div>
+          
+          <div className="mt-4 flex items-center justify-center gap-1.5">
+            <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+            <p className="text-[11px] font-bold text-gray-500">
+              Verified & Secure by <span className="text-[#635bff]">Stripe</span>
+            </p>
+          </div>
         </div>
       </div>
     )}
