@@ -106,7 +106,7 @@ function MenuContent() {
   const [stripeMode, setStripeMode] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
 
-  const [orderNotes, setOrderNotes] = useState("");
+  const [itemNotes, setItemNotes] = useState<{ [key: number]: string }>({});
 
   const displayedItems = selectedCategory === 'Προτεινόμενα' ? menuItems : menuItems.filter(item => item.category === selectedCategory);
   const [activeSplit, setActiveSplit] = useState<any>(null);
@@ -248,7 +248,7 @@ const handleStripeSetup = async () => {
             status: 'pending', 
             is_paid: false, 
             cash_requested: false,
-            notes: orderNotes // <-- ΠΡΟΣΘΕΣΕ ΑΥΤΗ ΤΗ ΓΡΑΜΜΗ
+            notes: itemNotes[item.id] || null
           });
         }
       }
@@ -257,7 +257,7 @@ const handleStripeSetup = async () => {
     const { error } = await supabase.from('order_items').insert(itemsToInsert);
     if (!error) { 
       setCart({}); 
-      setOrderNotes(""); // <-- ΠΡΟΣΘΕΣΕ ΚΑΙ ΑΥΤΗ ΤΗ ΓΡΑΜΜΗ
+      setItemNotes({});
       setShowCartModal(false); 
       alert("✅ Στάλθηκε στην κουζίνα!"); 
     }
@@ -415,30 +415,25 @@ const handleStripeSetup = async () => {
               {Object.entries(cart).map(([id, qty]) => {
                 const item = menuItems.find(m => m.id === Number(id));
                 if (!item) return null;
+                const itemId = Number(id);
                 return (
-                  <div key={id} className="flex justify-between items-center bg-white p-4 rounded-2xl border border-[#EADDCA]">
-                    <h4 className="font-bold">{item.name}</h4>
-                    <p className="text-[#800020] font-black text-sm">{(item.price * qty).toFixed(2)}€</p>
+                  <div key={id} className="bg-white p-4 rounded-2xl border border-[#EADDCA] space-y-3">
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-bold">{item.name} (x{qty})</h4>
+                      <p className="text-[#800020] font-black text-sm">{(item.price * qty).toFixed(2)}€</p>
+                    </div>
+                    {/* ΝΕΟ: Ειδικό πεδίο για το συγκεκριμένο πιάτο */}
+                    <input
+                      type="text"
+                      placeholder={`Σχόλιο για ${item.name}... (π.χ. χωρίς ντομάτα)`}
+                      value={itemNotes[itemId] || ""}
+                      onChange={(e) => setItemNotes(prev => ({ ...prev, [itemId]: e.target.value }))}
+                      className="w-full bg-[#FDFCF0] border border-[#EADDCA] rounded-xl p-2.5 text-xs focus:outline-none focus:border-[#800020]"
+                    />
                   </div>
                 );
               })}
             </div>
-
-            {/* ΕΔΩ ΜΠΑΙΝΕΙ ΤΟ TEXTAREA ΓΙΑ ΤΑ ΣΧΟΛΙΑ ΤΗΣ ΚΟΥΖΙΝΑΣ */}
-            <div className="mt-4 border-t border-[#EADDCA] pt-4 mb-6">
-              <label htmlFor="notes" className="block text-xs font-black uppercase tracking-wider text-[#800020] opacity-70 mb-2">
-                Σχόλια για την κουζίνα (Αλλεργίες, αφαιρέσεις κτλ.)
-              </label>
-              <textarea
-                id="notes"
-                value={orderNotes}
-                onChange={(e) => setOrderNotes(e.target.value)}
-                placeholder="π.χ. Το burger χωρίς κρεμμύδι, η σαλάτα χωρίς σως..."
-                className="w-full bg-white text-[#4A0404] border border-[#EADDCA] rounded-2xl p-4 text-sm focus:outline-none focus:border-[#800020] transition-colors resize-none shadow-inner"
-                rows={2}
-              />
-            </div>
-
             <button onClick={sendOrder} className="w-full bg-[#800020] text-white py-5 rounded-2xl font-bold shadow-lg">Αποστολή ({totalInCart.toFixed(2)}€)</button>
           </div>
         </div>
