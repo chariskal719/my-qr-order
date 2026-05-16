@@ -63,6 +63,13 @@ export default function KitchenDashboard() {
                 {tables[tableNum].map((item: any) => (
                   <div key={item.id} className="flex justify-between items-center bg-gray-700/50 p-3 rounded-lg">
                     <span className="font-medium text-lg">{item.name}</span>
+
+                    {item.notes && (
+                      <div className="text-red-600 text-sm font-black mt-1 bg-red-50 p-2 rounded-md border border-red-200">
+                        ⚠️ ΣΗΜΕΙΩΣΗ: {item.notes}
+                      </div>
+                    )}
+
                     <button 
                       onClick={() => markAsReady(item.id)}
                       className="bg-orange-600 hover:bg-orange-500 text-white font-bold py-2 px-4 rounded-lg transition-colors"

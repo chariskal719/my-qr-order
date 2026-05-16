@@ -55,6 +55,8 @@ function UnifiedCheckoutForm({ onSuccess, amount }: { onSuccess: () => void, amo
     processPayment();
   };
 
+  
+
   return (
     <div className="flex flex-col gap-6">
       {/* 1. Γρήγορη Πληρωμή (Apple/Google Pay) */}
@@ -103,6 +105,8 @@ function MenuContent() {
   
   const [stripeMode, setStripeMode] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+
+  const [orderNotes, setOrderNotes] = useState("");
 
   const displayedItems = selectedCategory === 'Προτεινόμενα' ? menuItems : menuItems.filter(item => item.category === selectedCategory);
   const [activeSplit, setActiveSplit] = useState<any>(null);
@@ -236,13 +240,27 @@ const handleStripeSetup = async () => {
       const item = menuItems.find(m => m.id === Number(id));
       if (item) {
         for (let i = 0; i < qty; i++) {
-          itemsToInsert.push({ table_number: tableNumber, item_id: item.id, name: item.name, price: item.price, status: 'pending', is_paid: false, cash_requested: false });
+          itemsToInsert.push({ 
+            table_number: tableNumber, 
+            item_id: item.id, 
+            name: item.name, 
+            price: item.price, 
+            status: 'pending', 
+            is_paid: false, 
+            cash_requested: false,
+            notes: orderNotes // <-- ΠΡΟΣΘΕΣΕ ΑΥΤΗ ΤΗ ΓΡΑΜΜΗ
+          });
         }
       }
     });
 
     const { error } = await supabase.from('order_items').insert(itemsToInsert);
-    if (!error) { setCart({}); setShowCartModal(false); alert("✅ Στάλθηκε στην κουζίνα!"); }
+    if (!error) { 
+      setCart({}); 
+      setOrderNotes(""); // <-- ΠΡΟΣΘΕΣΕ ΚΑΙ ΑΥΤΗ ΤΗ ΓΡΑΜΜΗ
+      setShowCartModal(false); 
+      alert("✅ Στάλθηκε στην κουζίνα!"); 
+    }
   };
 
   const totalInCart = Object.entries(cart).reduce((sum, [id, qty]) => sum + (menuItems.find(m => m.id === Number(id))?.price || 0) * qty, 0);
@@ -405,6 +423,22 @@ const handleStripeSetup = async () => {
                 );
               })}
             </div>
+
+            {/* ΕΔΩ ΜΠΑΙΝΕΙ ΤΟ TEXTAREA ΓΙΑ ΤΑ ΣΧΟΛΙΑ ΤΗΣ ΚΟΥΖΙΝΑΣ */}
+            <div className="mt-4 border-t border-[#EADDCA] pt-4 mb-6">
+              <label htmlFor="notes" className="block text-xs font-black uppercase tracking-wider text-[#800020] opacity-70 mb-2">
+                Σχόλια για την κουζίνα (Αλλεργίες, αφαιρέσεις κτλ.)
+              </label>
+              <textarea
+                id="notes"
+                value={orderNotes}
+                onChange={(e) => setOrderNotes(e.target.value)}
+                placeholder="π.χ. Το burger χωρίς κρεμμύδι, η σαλάτα χωρίς σως..."
+                className="w-full bg-white text-[#4A0404] border border-[#EADDCA] rounded-2xl p-4 text-sm focus:outline-none focus:border-[#800020] transition-colors resize-none shadow-inner"
+                rows={2}
+              />
+            </div>
+
             <button onClick={sendOrder} className="w-full bg-[#800020] text-white py-5 rounded-2xl font-bold shadow-lg">Αποστολή ({totalInCart.toFixed(2)}€)</button>
           </div>
         </div>
