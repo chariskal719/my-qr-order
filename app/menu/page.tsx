@@ -6,6 +6,29 @@ import { supabase } from '../utils/supabase';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, ExpressCheckoutElement, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
+const translations = {
+  gr: {
+    cart: "Το Καλάθι μου",
+    pay: "Πληρωμή",
+    send: "Αποστολή Παραγγελίας",
+    notesLabel: "Σημειώσεις",
+    notesPlaceholder: "π.χ. χωρίς κρεμμύδι...",
+    total: "Σύνολο",
+    splitBill: "Διαχωρισμός Λογαριασμού",
+    emptyCart: "Το καλάθι είναι άδειο"
+  },
+  en: {
+    cart: "My Cart",
+    pay: "Checkout",
+    send: "Send to Kitchen",
+    notesLabel: "Notes",
+    notesPlaceholder: "e.g. no onions...",
+    total: "Total",
+    splitBill: "Split Bill",
+    emptyCart: "Cart is empty"
+  }
+};
+
 export const dynamic = 'force-dynamic';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY as string);
@@ -89,6 +112,10 @@ function UnifiedCheckoutForm({ onSuccess, amount }: { onSuccess: () => void, amo
 }
 
 function MenuContent() {
+
+  const [lang, setLang] = useState<'gr' | 'en'>('gr');
+  const t = translations[lang];
+
   const searchParams = useSearchParams();
   const tableNumber = searchParams.get('table') || '0';
 
@@ -268,6 +295,8 @@ const handleStripeSetup = async () => {
 
   return (
     <div className="min-h-screen bg-[#FDFCF0] text-[#4A0404] pb-32 font-sans">
+
+
       
       {/* --- STICKY HEADER & CATEGORIES (PRO UI) --- */}
       <div className="sticky top-0 z-40 bg-[#FDFCF0] shadow-sm">
@@ -281,9 +310,21 @@ const handleStripeSetup = async () => {
             <p className="text-xs font-bold opacity-60 uppercase tracking-widest text-[#800020]">Τραπεζι {tableNumber}</p>
           </div>
           {/* Μια διακριτική ένδειξη γλώσσας δίνει κύρος */}
-          <div className="text-[#800020] text-xs font-bold flex gap-1 bg-white px-2 py-1 rounded-md border border-[#EADDCA]">
-            <span>EN</span><span className="opacity-30">|</span><span className="opacity-50">GR</span>
-          </div>
+          <div className="flex items-center justify-center gap-2 bg-gray-100 rounded-full px-3 py-1 text-sm border border-gray-200 w-fit mb-4">
+          <button 
+            onClick={() => setLang('gr')}
+            className={`${lang === 'gr' ? 'text-black font-bold' : 'text-gray-400'}`}
+          >
+            GR
+          </button>
+          <span className="text-gray-300">|</span>
+           <button 
+               onClick={() => setLang('en')}
+               className={`${lang === 'en' ? 'text-black font-bold' : 'text-gray-400'}`}
+  >
+             EN
+  </button>
+</div>
         </header>
 
         <div className="px-5 pb-3 max-w-2xl mx-auto">
@@ -353,7 +394,7 @@ const handleStripeSetup = async () => {
             {totalUnpaid > 0 && (
               <div className="mt-6">
                 <div className="flex justify-between items-center mb-4 px-2">
-                  <span className="font-bold text-lg">Σύνολο:</span>
+                  <span className="font-bold text-lg">{t.total}</span>
                   <span className="font-black text-2xl text-[#800020]">{totalUnpaid.toFixed(2)}€</span>
                 </div>
                 <button onClick={() => setShowPaymentOptions(true)} className="w-full bg-[#800020] text-white py-4 rounded-2xl font-bold shadow-lg active:scale-95 transition-transform">
@@ -387,7 +428,7 @@ const handleStripeSetup = async () => {
           
           {/* Το αλλάξαμε σε button για να φύγει το warning */}
           <button className="flex flex-col pl-2 text-left" onClick={() => setShowCartModal(true)}>
-            <span className="text-gray-400 text-sm font-medium">Καλάθι • {cartItemCount} είδη</span>
+            <span className="text-gray-400 text-sm font-medium"> {t.cart} {cartItemCount} είδη</span>
             <span className="text-[#deff9a] font-bold text-2xl tracking-tight">
               {totalInCart.toFixed(2)}€
             </span>
@@ -397,7 +438,7 @@ const handleStripeSetup = async () => {
             onClick={() => setShowCartModal(true)}
             className="bg-[#deff9a] text-[#121212] px-8 py-3.5 rounded-full font-bold text-lg shadow-[0_0_20px_rgba(222,255,154,0.3)] transition-all active:scale-95 flex items-center gap-2"
           >
-            Πληρωμή
+            {t.pay}
             <span className="bg-[#121212] text-[#deff9a] w-6 h-6 rounded-full flex items-center justify-center text-sm">
                →
             </span>
@@ -410,7 +451,7 @@ const handleStripeSetup = async () => {
         <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end">
           <div className="bg-[#FDFCF0] w-full max-h-[80vh] overflow-y-auto rounded-t-[40px] p-8 pb-12 shadow-2xl animate-in slide-in-from-bottom">
             <button onClick={() => setShowCartModal(false)} className="float-right font-bold text-[#800020]">Κλείσιμο</button>
-            <h2 className="text-2xl font-serif font-black mb-6">Το Καλάθι σας</h2>
+            <h2 className="text-2xl font-serif font-black mb-6"> {t.cart} </h2>
             <div className="space-y-4 mb-8">
               {Object.entries(cart).map(([id, qty]) => {
                 const item = menuItems.find(m => m.id === Number(id));
@@ -434,7 +475,7 @@ const handleStripeSetup = async () => {
                 );
               })}
             </div>
-            <button onClick={sendOrder} className="w-full bg-[#800020] text-white py-5 rounded-2xl font-bold shadow-lg">Αποστολή ({totalInCart.toFixed(2)}€)</button>
+            <button onClick={sendOrder} className="w-full bg-[#800020] text-white py-5 rounded-2xl font-bold shadow-lg"> {t.send} ({totalInCart.toFixed(2)}€)</button>
           </div>
         </div>
       )}
@@ -443,7 +484,7 @@ const handleStripeSetup = async () => {
         <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end">
           <div className="bg-[#FDFCF0] w-full max-h-[90vh] overflow-y-auto rounded-t-[40px] p-8 pb-12 shadow-2xl animate-in slide-in-from-bottom">
             <button onClick={() => {setShowPaymentOptions(false); setPaymentMethod(null); setStripeMode(false); setClientSecret(null);}} className="float-right font-bold text-[#800020]">Κλείσιμο</button>
-            <h2 className="text-2xl font-serif font-black mb-6">Πληρωμή</h2>
+            <h2 className="text-2xl font-serif font-black mb-6"> {t.pay} </h2>
 
             
             
