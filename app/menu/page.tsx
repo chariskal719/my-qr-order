@@ -322,19 +322,18 @@ const sendOrder = async () => {
       }
     });
 
-    const { error } = await supabase.from('order_items').insert(itemsToInsert);
-    if (!error) { 
+    // ΝΕΟ: Προσθέσαμε το .select() στο τέλος της εντολής!
+    const { data: newItems, error } = await supabase.from('order_items').insert(itemsToInsert).select();
+    
+    if (!error && newItems) { 
       setCart({}); 
       setItemNotes({});
       setShowCartModal(false); 
-      alert("✅ Στάλθηκε στην κουζίνα!"); 
       
-      // ΝΕΟ: Αναγκάζουμε την εφαρμογή να φέρει τα πιάτα ΤΩΡΑ, χωρίς να περιμένει το Safari!
-      const { data: cartData } = await supabase
-        .from('order_items')
-        .select('*')
-        .eq('table_number', tableNumber);
-      if (cartData) setDbCart(cartData);
+      // ΝΕΟ: Παίρνουμε τα πιάτα που μόλις μπήκαν και τα βάζουμε ΚΑΤΕΥΘΕΙΑΝ στην οθόνη μας!
+      setDbCart(prev => [...prev, ...newItems]);
+      
+      alert("✅ Στάλθηκε στην κουζίνα!"); 
     }
   };
 
