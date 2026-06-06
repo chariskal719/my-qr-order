@@ -322,19 +322,12 @@ const sendOrder = async () => {
       }
     });
 
-    // Βάζουμε το .select() για να γυρίσει πίσω η επιβεβαίωση
-    const { data: newItems, error } = await supabase.from('order_items').insert(itemsToInsert).select();
-    
-    if (!error && newItems) { 
+    const { error } = await supabase.from('order_items').insert(itemsToInsert);
+    if (!error) { 
       setCart({}); 
       setItemNotes({});
       setShowCartModal(false); 
-      
-      // Καθαρό fetch από τη βάση - ΧΩΡΙΣ alert να μπλοκάρει το κινητό!
-      const { data: freshCart } = await supabase.from('order_items').select('*').eq('table_number', tableNumber);
-      if (freshCart) {
-        setDbCart(freshCart);
-      }
+      alert("✅ Στάλθηκε στην κουζίνα!"); 
     }
   };
 
