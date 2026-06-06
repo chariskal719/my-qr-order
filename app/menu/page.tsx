@@ -329,8 +329,12 @@ const sendOrder = async () => {
       setShowCartModal(false); 
       alert("✅ Στάλθηκε στην κουζίνα!"); 
       
-      // Ο απόλυτος, σίγουρος τρόπος: Σκληρή ανανέωση της σελίδας!
-      window.location.reload();
+      // ΝΕΟ: Αναγκάζουμε την εφαρμογή να φέρει τα πιάτα ΤΩΡΑ, χωρίς να περιμένει το Safari!
+      const { data: cartData } = await supabase
+        .from('order_items')
+        .select('*')
+        .eq('table_number', tableNumber);
+      if (cartData) setDbCart(cartData);
     }
   };
 
