@@ -302,7 +302,7 @@ const handleStripeSetup = async () => {
     });
   };
 
- const sendOrder = async () => {
+const sendOrder = async () => {
     const itemsToInsert: any[] = [];
     Object.entries(cart).forEach(([id, qty]) => {
       const item = menuItems.find(m => m.id === Number(id));
@@ -323,14 +323,30 @@ const handleStripeSetup = async () => {
     });
 
     const { error } = await supabase.from('order_items').insert(itemsToInsert);
+
     if (!error) { 
       setCart({}); 
       setItemNotes({});
       setShowCartModal(false); 
+      
+      // ΤΟ ΜΥΣΤΙΚΟ ΓΙΑ ΝΑ ΞΕΓΕΛΑΣΟΥΜΕ ΤΟ SAFARI:
+      // Ζητάμε τα πιάτα, αλλά βάζουμε έναν τυχαίο αριθμό (Date.now) 
+      // για να ΜΗΝ μας δώσει ποτέ τα παλιά από τη μνήμη (cache) του κινητού!
+      const { data: freshCart } = await supabase
+        .from('order_items')
+        .select('*')
+        .eq('table_number', tableNumber)
+        .neq('name', `dummy_${Date.now()}`); // <-- Αυτό σπάει το κόλλημα!
+
+      if (freshCart) {
+        setDbCart(freshCart);
+      }
+
       alert("✅ Στάλθηκε στην κουζίνα!"); 
+    } else {
+      alert("Σφάλμα: " + error.message);
     }
   };
-
 
   const totalInCart = Object.entries(cart).reduce((sum, [id, qty]) => sum + (menuItems.find(m => m.id === Number(id))?.price || 0) * qty, 0);
   const cartItemCount = Object.values(cart).reduce((a, b) => a + b, 0);
