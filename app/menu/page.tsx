@@ -302,7 +302,7 @@ const handleStripeSetup = async () => {
     });
   };
 
-const sendOrder = async () => {
+ const sendOrder = async () => {
     const itemsToInsert: any[] = [];
     Object.entries(cart).forEach(([id, qty]) => {
       const item = menuItems.find(m => m.id === Number(id));
@@ -330,6 +330,7 @@ const sendOrder = async () => {
       alert("✅ Στάλθηκε στην κουζίνα!"); 
     }
   };
+
 
   const totalInCart = Object.entries(cart).reduce((sum, [id, qty]) => sum + (menuItems.find(m => m.id === Number(id))?.price || 0) * qty, 0);
   const cartItemCount = Object.values(cart).reduce((a, b) => a + b, 0);
