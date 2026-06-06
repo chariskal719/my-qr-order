@@ -329,9 +329,8 @@ const sendOrder = async () => {
       setShowCartModal(false); 
       alert("✅ Στάλθηκε στην κουζίνα!"); 
       
-      // ΝΕΟ: Τραβάμε αμέσως τα δεδομένα του τραπεζιού ώστε να μην περιμένουμε το Incognito να ξυπνήσει!
-      const { data } = await supabase.from('order_items').select('*').eq('table_number', tableNumber);
-      if (data) setDbCart(data);
+      // Ο απόλυτος, σίγουρος τρόπος: Σκληρή ανανέωση της σελίδας!
+      window.location.reload();
     }
   };
 
