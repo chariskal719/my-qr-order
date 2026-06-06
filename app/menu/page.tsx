@@ -322,7 +322,7 @@ const sendOrder = async () => {
       }
     });
 
-    // ΝΕΟ: Προσθέσαμε το .select() στο τέλος της εντολής!
+    // Βάζουμε το .select() για να γυρίσει πίσω η επιβεβαίωση
     const { data: newItems, error } = await supabase.from('order_items').insert(itemsToInsert).select();
     
     if (!error && newItems) { 
@@ -330,10 +330,11 @@ const sendOrder = async () => {
       setItemNotes({});
       setShowCartModal(false); 
       
-      // ΝΕΟ: Παίρνουμε τα πιάτα που μόλις μπήκαν και τα βάζουμε ΚΑΤΕΥΘΕΙΑΝ στην οθόνη μας!
-      setDbCart(prev => [...prev, ...newItems]);
-      
-      alert("✅ Στάλθηκε στην κουζίνα!"); 
+      // Καθαρό fetch από τη βάση - ΧΩΡΙΣ alert να μπλοκάρει το κινητό!
+      const { data: freshCart } = await supabase.from('order_items').select('*').eq('table_number', tableNumber);
+      if (freshCart) {
+        setDbCart(freshCart);
+      }
     }
   };
 
