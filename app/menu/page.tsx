@@ -323,28 +323,19 @@ const sendOrder = async () => {
     });
 
     const { error } = await supabase.from('order_items').insert(itemsToInsert);
-
+    
     if (!error) { 
-      setCart({}); 
+      // Αδειάζουμε το τοπικό καλάθι και μετά κάνουμε σκληρό refresh
+      setCart({});
       setItemNotes({});
-      setShowCartModal(false); 
+      setShowCartModal(false);
       
-      // ΤΟ ΜΥΣΤΙΚΟ ΓΙΑ ΝΑ ΞΕΓΕΛΑΣΟΥΜΕ ΤΟ SAFARI:
-      // Ζητάμε τα πιάτα, αλλά βάζουμε έναν τυχαίο αριθμό (Date.now) 
-      // για να ΜΗΝ μας δώσει ποτέ τα παλιά από τη μνήμη (cache) του κινητού!
-      const { data: freshCart } = await supabase
-        .from('order_items')
-        .select('*')
-        .eq('table_number', tableNumber)
-        .neq('name', `dummy_${Date.now()}`); // <-- Αυτό σπάει το κόλλημα!
-
-      if (freshCart) {
-        setDbCart(freshCart);
-      }
-
-      alert("✅ Στάλθηκε στην κουζίνα!"); 
+      // Αντί για alert που μπλοκάρει το κινητό, κάνουμε reload.
+      // Έτσι η εφαρμογή ξαναδιαβάζει τη βάση από το μηδέν.
+      window.location.reload(); 
     } else {
-      alert("Σφάλμα: " + error.message);
+      console.error("Error inserting:", error);
+      alert("Κάτι πήγε στραβά, δοκίμασε ξανά.");
     }
   };
 
