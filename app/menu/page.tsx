@@ -302,7 +302,7 @@ const handleStripeSetup = async () => {
     });
   };
 
-  const sendOrder = async () => {
+const sendOrder = async () => {
     const itemsToInsert: any[] = [];
     Object.entries(cart).forEach(([id, qty]) => {
       const item = menuItems.find(m => m.id === Number(id));
@@ -328,6 +328,10 @@ const handleStripeSetup = async () => {
       setItemNotes({});
       setShowCartModal(false); 
       alert("✅ Στάλθηκε στην κουζίνα!"); 
+      
+      // ΝΕΟ: Τραβάμε αμέσως τα δεδομένα του τραπεζιού ώστε να μην περιμένουμε το Incognito να ξυπνήσει!
+      const { data } = await supabase.from('order_items').select('*').eq('table_number', tableNumber);
+      if (data) setDbCart(data);
     }
   };
 
@@ -386,7 +390,7 @@ const handleStripeSetup = async () => {
           </div>
         </div>
       </div>
-      
+
       <main className="p-5 max-w-2xl mx-auto space-y-4 pt-4">
 
         {/* --- PREMIUM PRODUCT CARDS --- */}
