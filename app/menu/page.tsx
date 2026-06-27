@@ -537,45 +537,52 @@ const sendOrder = async () => {
               <button onClick={() => {setShowPaymentOptions(false); setPaymentMethod(null); setStripeMode(false); setClientSecret(null);}} className="font-bold text-sm text-gray-400 hover:text-gray-900 transition-colors uppercase tracking-wider">{t.close}</button>
             </div>
 
+            {/* --- ΣΕΝΑΡΙΟ: ΥΠΑΡΧΕΙ ΗΔΗ ΕΝΕΡΓΟΣ ΡΕΦΕΝΕΣ --- */}
             {activeSplit ? (
               <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100 mt-2 mb-6 text-center">
-                <h3 className="text-lg font-bold text-gray-900 mb-1">🔒 Ενεργή Μοιρασιά</h3>
-                <p className="text-xs text-gray-400 mb-4">
-                  Μέρη: {activeSplit.paid_parts} / {activeSplit.total_parts} εξοφλήθηκαν
+                <h3 className="text-xl font-black text-gray-900 mb-2">🔒 Λογαριασμός Κλειδωμένος</h3>
+                
+                <p className="text-sm font-bold text-[#800020] mb-1">
+                  Ενεργό Ρεφενέ: Πλήρωσαν {activeSplit.paid_parts} / {activeSplit.total_parts}
                 </p>
-                <div className="bg-white rounded-2xl py-4 mb-6 border border-gray-100 shadow-sm">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{t.splitAmount}</p>
-                  <p className="text-3xl font-black text-gray-900 mt-1">{Number(activeSplit.split_amount).toFixed(2)}€</p>
+                <p className="text-xs text-gray-500 mb-6 font-medium">
+                  Υπόλοιπο Τραπεζιού: {(Number(activeSplit.split_amount) * (activeSplit.total_parts - activeSplit.paid_parts)).toFixed(2)}€
+                </p>
+
+                <div className="bg-white rounded-2xl py-5 mb-6 border border-gray-100 shadow-sm">
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Το Μερίδιό Σου</p>
+                  <p className="text-4xl font-black text-gray-900">{Number(activeSplit.split_amount).toFixed(2)}€</p>
                 </div>
 
                 {!stripeMode ? (
-                  <button onClick={handleStripeSetup} className="w-full bg-[#800020] text-white py-4 rounded-2xl font-bold shadow-[0_8px_25px_rgba(128,0,32,0.25)]">
-                    Πληρωμή Μεριδίου
+                  <button onClick={handleStripeSetup} className="w-full bg-[#800020] text-white py-4 rounded-2xl font-bold text-lg shadow-[0_8px_25px_rgba(128,0,32,0.25)] hover:opacity-95 active:scale-[0.99] transition-all">
+                    Πληρωμή ({Number(activeSplit.split_amount).toFixed(2)}€)
                   </button>
                 ) : (
                   clientSecret ? (
                     <div className="mt-4 text-left">
                       <Elements key={clientSecret} stripe={stripePromise} options={{ clientSecret }}>
                         <UnifiedCheckoutForm
-                        amount={Number(activeSplit.split_amount).toFixed(2)}
-                        onSuccess={async () => {
-                          const newPaidParts = activeSplit.paid_parts + 1;
-                          
-                          if (newPaidParts >= activeSplit.total_parts) {
-                            // Αν πλήρωσε και ο ΤΕΛΕΥΤΑΙΟΣ: Μαρκάρουμε όλα τα πιάτα πληρωμένα και διαγράφουμε το split
-                            const unpaidIds = unpaidDbItems.map(i => i.id);
-                            await supabase.from('order_items').update({ is_paid: true }).in('id', unpaidIds);
-                            await supabase.from('active_splits').delete().eq('id', activeSplit.id);
-                          } else {
-                            // Αν πλήρωσαν οι πρώτοι: Απλά αυξάνουμε τον μετρητή των ατόμων
-                            await supabase.from('active_splits').update({ paid_parts: newPaidParts }).eq('id', activeSplit.id);
-                          }
+                          amount={Number(activeSplit.split_amount).toFixed(2)}
+                          onSuccess={async () => {
+                            const newPaidParts = activeSplit.paid_parts + 1;
+                            
+                            if (newPaidParts >= activeSplit.total_parts) {
+                              // Πλήρωσε και ο τελευταίος: Εξοφλούμε τα πιάτα και διαγράφουμε το split
+                              const unpaidIds = unpaidDbItems.map(i => i.id);
+                              await supabase.from('order_items').update({ is_paid: true }).in('id', unpaidIds);
+                              await supabase.from('active_splits').delete().eq('id', activeSplit.id);
+                            } else {
+                              // Ενημερώνουμε το κλάσμα (π.χ. από 1/3 σε 2/3)
+                              await supabase.from('active_splits').update({ paid_parts: newPaidParts }).eq('id', activeSplit.id);
+                            }
 
-                          alert("✅ Η πληρωμή ολοκληρώθηκε επιτυχώς!");
-                          setStripeMode(false);
-                          setClientSecret(null);
-                        }}
-                      />
+                            alert("✅ Η πληρωμή επιβεβαιώθηκε!");
+                            setStripeMode(false);
+                            setClientSecret(null);
+                            setShowPaymentOptions(false);
+                          }}
+                        />
                       </Elements>
                     </div>
                   ) : (
@@ -584,6 +591,7 @@ const sendOrder = async () => {
                 )}
               </div>
             ) : (
+              /* --- ΣΕΝΑΡΙΟ: ΝΕΑ ΠΛΗΡΩΜΗ (ΟΙ 3 ΕΠΙΛΟΓΕΣ) --- */
               <div className="payment-options-container">
                 {!paymentMethod ? (
                   <div className="flex flex-col gap-3">
@@ -633,7 +641,7 @@ const sendOrder = async () => {
 
                     <div className="flex flex-col gap-3 pt-2">
                       {!stripeMode ? (
-                        <button onClick={handleStripeSetup} className="w-full bg-[#800020] text-white py-4 rounded-2xl font-bold shadow-[0_8px_25_rgba(128,0,32,0.25)]">
+                        <button onClick={handleStripeSetup} className="w-full bg-[#800020] text-white py-4 rounded-2xl font-bold shadow-[0_8px_25px_rgba(128,0,32,0.25)]">
                           💳 {t.pay} {amountToPay.toFixed(2)}€
                         </button>
                       ) : (
@@ -641,36 +649,31 @@ const sendOrder = async () => {
                           <div className="mt-2 text-left">
                             <Elements key={clientSecret} stripe={stripePromise} options={{ clientSecret }}>
                               <UnifiedCheckoutForm
-                        amount={amountToPay.toFixed(2)}
-                        onSuccess={async () => {
-                          if (paymentMethod === 'own') {
-                            // 1. Πληρώνει τα δικά του: Ενημερώνουμε ΜΟΝΟ τα επιλεγμένα πιάτα
-                            await supabase.from('order_items').update({ is_paid: true }).in('id', selectedItemIds);
-                            
-                          } else if (paymentMethod === 'full') {
-                            // 2. Πληρώνει ΟΛΑ: Ενημερώνουμε όλα τα απλήρωτα πιάτα του τραπεζιού
-                            const unpaidIds = unpaidDbItems.map(i => i.id);
-                            await supabase.from('order_items').update({ is_paid: true }).in('id', unpaidIds);
-                            
-                          } else if (paymentMethod === 'equal') {
-                            // 3. Ρεφενέ (Πρώτη πληρωμή): ΔΕΝ εξοφλούμε τα πιάτα ακόμα!
-                            // Δημιουργούμε την ενεργή μοιρασιά στη βάση για να τη δουν όλοι.
-                            await supabase.from('active_splits').insert({
-                              table_number: tableNumber,
-                              total_parts: splitCount,
-                              paid_parts: 1,
-                              split_amount: amountToPay
-                            });
-                          }
+                                amount={amountToPay.toFixed(2)}
+                                onSuccess={async () => {
+                                  if (paymentMethod === 'own') {
+                                    await supabase.from('order_items').update({ is_paid: true }).in('id', selectedItemIds);
+                                  } else if (paymentMethod === 'full') {
+                                    const unpaidIds = unpaidDbItems.map(i => i.id);
+                                    await supabase.from('order_items').update({ is_paid: true }).in('id', unpaidIds);
+                                  } else if (paymentMethod === 'equal') {
+                                    // Εδώ δημιουργείται η Ενεργή Μοιρασιά (ΔΕΝ σβήνουμε τα πιάτα ακόμα)
+                                    await supabase.from('active_splits').insert([{
+                                      table_number: tableNumber,
+                                      total_parts: splitCount,
+                                      paid_parts: 1,
+                                      split_amount: amountToPay
+                                    }]);
+                                  }
 
-                          alert("✅ Η πληρωμή ολοκληρώθηκε επιτυχώς!");
-                          setShowPaymentOptions(false);
-                          setPaymentMethod(null);
-                          setStripeMode(false);
-                          setClientSecret(null);
-                          setSelectedItemIds([]);
-                        }}
-/>
+                                  alert("✅ Η πληρωμή ολοκληρώθηκε επιτυχώς!");
+                                  setShowPaymentOptions(false);
+                                  setPaymentMethod(null);
+                                  setStripeMode(false);
+                                  setClientSecret(null);
+                                  setSelectedItemIds([]);
+                                }}
+                              />
                             </Elements>
                           </div>
                         ) : (
@@ -681,16 +684,6 @@ const sendOrder = async () => {
                       <button onClick={handleCashPayment} className="w-full border border-gray-200 text-gray-700 py-4 rounded-2xl font-bold mt-1 bg-gray-50 hover:bg-gray-100 transition-colors">
                         💵 {t.cash}
                       </button>
-                    </div>
-
-                    <div className="mt-8 pt-6 border-t border-gray-100 text-center">
-                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-3">Secure Payment</p>
-                      <div className="flex items-center justify-center gap-1.5">
-                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-                        <p className="text-[11px] font-medium text-gray-400">
-                          Verified by <span className="text-gray-600 font-bold">Stripe</span>
-                        </p>
-                      </div>
                     </div>
                   </div>
                 )}
