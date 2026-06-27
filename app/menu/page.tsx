@@ -397,31 +397,30 @@ const sendOrder = async () => {
 
       <main className="p-5 max-w-2xl mx-auto space-y-4 pt-4">
 
-        {/* --- PREMIUM PRODUCT CARDS --- */}
+       {/* --- CLEAN PREMIUM PRODUCT CARDS --- */}
         {displayedItems.map((item) => (
-          <div key={item.id} className="bg-white p-4 rounded-3xl border border-[#EADDCA] flex gap-4 shadow-sm relative overflow-hidden transition-all hover:shadow-md">
+          <div key={item.id} className="bg-white p-4 rounded-3xl border border-gray-100 flex gap-4 shadow-[0_4px_20px_rgba(0,0,0,0.03)] relative overflow-hidden transition-all hover:shadow-[0_4px_20px_rgba(0,0,0,0.08)]">
             
-            {/* Placeholder για μελλοντικές φωτογραφίες */}
-            <div className="w-[84px] h-[84px] bg-[#FDFCF0] rounded-2xl flex items-center justify-center flex-shrink-0 border border-[#EADDCA]">
-              <span className="text-3xl opacity-50">🍽️</span>
+            {/* Minimal Image Placeholder */}
+            <div className="w-[84px] h-[84px] bg-gray-50 rounded-2xl flex items-center justify-center flex-shrink-0 border border-gray-100">
+              <span className="text-3xl opacity-40 grayscale">🍽️</span>
             </div>
 
             <div className="flex flex-col justify-center flex-grow pr-2">
-              <h3 className="font-bold text-[#800020] text-[17px] leading-tight">{item.name}</h3>
-              {/* Εδώ εμφανίζουμε επιτέλους την περιγραφή που είχες στα δεδομένα σου! */}
-              <p className="text-xs text-gray-500 mt-1.5 leading-snug line-clamp-2">{item.description}</p>
-              <p className="font-black text-[15px] mt-2">{item.price.toFixed(2)}€</p>
+              <h3 className="font-bold text-gray-900 text-[17px] leading-tight">{item.name}</h3>
+              <p className="text-xs text-gray-400 mt-1.5 leading-snug line-clamp-2">{item.description}</p>
+              <p className="font-black text-[15px] mt-2 text-gray-900">{item.price.toFixed(2)}€</p>
             </div>
 
             <div className="flex flex-col items-end justify-center min-w-[40px]">
               {cart[item.id] > 0 ? (
-                <div className="flex flex-col items-center justify-between bg-[#FDFCF0] rounded-full border border-[#EADDCA] h-full py-1">
-                  <button onClick={() => addToCart(item.id)} className="w-8 h-8 flex items-center justify-center text-[#800020] font-bold text-xl active:scale-95">+</button>
+                <div className="flex flex-col items-center justify-between bg-gray-50 rounded-full border border-gray-100 h-full py-1">
+                  <button onClick={() => addToCart(item.id)} className="w-8 h-8 flex items-center justify-center text-gray-900 font-bold text-xl active:scale-95">+</button>
                   <span className="font-bold text-[#800020] text-sm my-1">{cart[item.id]}</span>
-                  <button onClick={() => removeFromCart(item.id)} className="w-8 h-8 flex items-center justify-center text-[#800020] font-bold text-xl active:scale-95">-</button>
+                  <button onClick={() => removeFromCart(item.id)} className="w-8 h-8 flex items-center justify-center text-gray-900 font-bold text-xl active:scale-95">-</button>
                 </div>
               ) : (
-                <button onClick={() => addToCart(item.id)} className="bg-[#FDFCF0] border border-[#EADDCA] text-[#800020] w-10 h-10 rounded-full font-bold active:scale-95 transition-transform flex items-center justify-center shadow-sm">
+                <button onClick={() => addToCart(item.id)} className="bg-gray-50 border border-gray-100 text-gray-900 w-10 h-10 rounded-full font-bold active:scale-95 transition-transform flex items-center justify-center shadow-sm hover:bg-gray-100">
                   <span className="text-2xl mb-0.5">+</span>
                 </button>
               )}
@@ -469,28 +468,26 @@ const sendOrder = async () => {
         </p>
       </footer>
 
-        {/* --- STICKY BOTTOM BAR (PRO UI) --- */}
+       {/* --- CLEAN PREMIUM STICKY BOTTOM BAR --- */}
       {Object.keys(cart).length > 0 && !showCartModal && (
-        <div className="fixed bottom-0 left-0 right-0 bg-[#121212] border-t border-gray-800 p-4 pb-6 z-50 flex justify-between items-center rounded-t-3xl shadow-[0_-15px_40px_rgba(0,0,0,0.4)] md:max-w-2xl md:mx-auto animate-in slide-in-from-bottom-10">
+        <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-gray-100 p-4 pb-8 z-50 flex justify-between items-center rounded-t-[32px] shadow-[0_-10px_40px_rgba(0,0,0,0.06)] md:max-w-2xl md:mx-auto animate-in slide-in-from-bottom-10">
           
-          {/* Το αλλάξαμε σε button για να φύγει το warning */}
-          <button className="flex flex-col pl-2 text-left" onClick={() => setShowCartModal(true)}>
-            <span className="text-gray-400 text-sm font-medium"> {t.cart} {cartItemCount} {t.items}</span>
-            <span className="text-[#deff9a] font-bold text-2xl tracking-tight">
+          <button className="flex flex-col pl-4 text-left" onClick={() => setShowCartModal(true)}>
+            <span className="text-gray-400 text-[11px] font-bold uppercase tracking-wider">{t.cart} • {cartItemCount} {t.items}</span>
+            <span className="text-gray-900 font-black text-2xl tracking-tight">
               {totalInCart.toFixed(2)}€
             </span>
           </button>
 
           <button 
             onClick={() => setShowCartModal(true)}
-            className="bg-[#deff9a] text-[#121212] px-8 py-3.5 rounded-full font-bold text-lg shadow-[0_0_20px_rgba(222,255,154,0.3)] transition-all active:scale-95 flex items-center gap-2"
+            className="bg-[#800020] text-white px-8 py-3.5 rounded-full font-bold text-base shadow-[0_8px_20px_rgba(128,0,32,0.25)] transition-all active:scale-95 flex items-center gap-2"
           >
             {t.pay}
-            <span className="bg-[#121212] text-[#deff9a] w-6 h-6 rounded-full flex items-center justify-center text-sm">
+            <span className="bg-white/20 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm">
                →
             </span>
           </button>
-
         </div>
       )}
 
