@@ -492,197 +492,185 @@ const sendOrder = async () => {
       )}
 
       {showCartModal && (
-        <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end">
-          <div className="bg-[#FDFCF0] w-full max-h-[80vh] overflow-y-auto rounded-t-[40px] p-8 pb-12 shadow-2xl animate-in slide-in-from-bottom">
-            <button onClick={() => setShowCartModal(false)} className="float-right font-bold text-[#800020]">{t.close}</button>
-            <h2 className="text-2xl font-serif font-black mb-6"> {t.cart} </h2>
+        <div className="fixed inset-0 z-[100] bg-black/30 backdrop-blur-md flex items-end">
+          <div className="bg-white w-full max-h-[85vh] overflow-y-auto rounded-t-[40px] p-8 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.1)] md:max-w-2xl md:mx-auto animate-in slide-in-from-bottom duration-300">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-black text-gray-900 tracking-tight"> {t.cart} </h2>
+              <button onClick={() => setShowCartModal(false)} className="font-bold text-sm text-gray-400 hover:text-gray-900 transition-colors uppercase tracking-wider">{t.close}</button>
+            </div>
+            
             <div className="space-y-4 mb-8">
               {Object.entries(cart).map(([id, qty]) => {
                 const item = menuItems.find(m => m.id === Number(id));
                 if (!item) return null;
                 const itemId = Number(id);
                 return (
-                  <div key={id} className="bg-white p-4 rounded-2xl border border-[#EADDCA] space-y-3">
+                  <div key={id} className="bg-gray-50 p-4 rounded-2xl border border-gray-100 space-y-3">
                     <div className="flex justify-between items-center">
-                      <h4 className="font-bold">{item.name} (x{qty})</h4>
-                      <p className="text-[#800020] font-black text-sm">{(item.price * qty).toFixed(2)}€</p>
+                      <h4 className="font-bold text-gray-900">{item.name} <span className="text-gray-400 font-medium">x{qty}</span></h4>
+                      <p className="text-gray-900 font-black text-base">{(item.price * qty).toFixed(2)}€</p>
                     </div>
-                    {/* ΝΕΟ: Ειδικό πεδίο για το συγκεκριμένο πιάτο */}
                     <input
                       type="text"
                       placeholder={t.notesPlaceholder}
                       value={itemNotes[itemId] || ""}
                       onChange={(e) => setItemNotes(prev => ({ ...prev, [itemId]: e.target.value }))}
-                      className="w-full bg-[#FDFCF0] border border-[#EADDCA] rounded-xl p-2.5 text-xs focus:outline-none focus:border-[#800020]"
+                      className="w-full bg-white border border-gray-200 rounded-xl p-3 text-xs focus:outline-none focus:border-[#800020] transition-colors placeholder-gray-400"
                     />
                   </div>
                 );
               })}
             </div>
-            <button onClick={sendOrder} className="w-full bg-[#800020] text-white py-5 rounded-2xl font-bold shadow-lg"> {t.send} ({totalInCart.toFixed(2)}€)</button>
+            
+            <button onClick={sendOrder} className="w-full bg-[#800020] text-white py-4 rounded-2xl font-bold shadow-[0_8px_25px_rgba(128,0,32,0.3)] hover:opacity-95 active:scale-[0.99] transition-all text-base"> 
+              {t.send} ({totalInCart.toFixed(2)}€)
+            </button>
           </div>
         </div>
       )}
 
       {showPaymentOptions && (
-        <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-end">
-          <div className="bg-[#FDFCF0] w-full max-h-[90vh] overflow-y-auto rounded-t-[40px] p-8 pb-12 shadow-2xl animate-in slide-in-from-bottom">
-            <button onClick={() => {setShowPaymentOptions(false); setPaymentMethod(null); setStripeMode(false); setClientSecret(null);}} className="float-right font-bold text-[#800020]">{t.close}</button>
-            <h2 className="text-2xl font-serif font-black mb-6"> {t.pay} </h2>
-
-            
-            
-            {activeSplit ? (
-  <div className="bg-blue-50 p-6 rounded-3xl border-2 border-blue-200 mt-6 mb-6 text-center shadow-sm">
-    <h3 className="text-xl font-bold text-blue-900 mb-2">🔒 Ενεργή Μοιρασιά</h3>
-    <p className="text-blue-800 font-medium mb-4">
-      Η παρέα έχει επιλέξει να μοιράσει τον λογαριασμό στα {activeSplit.total_parts}.<br/>
-      Έχουν ήδη πληρώσει {activeSplit.paid_parts} από τους {activeSplit.total_parts}.
-    </p>
-    <div className="bg-white rounded-xl py-4 mb-6 shadow-inner border border-blue-100">
-      <p className="text-sm text-gray-500 uppercase tracking-wide">{t.splitAmount}</p>
-      <p className="text-4xl font-black text-[#800020]">{Number(activeSplit.split_amount).toFixed(2)}€</p>
-    </div>
-
-    {!stripeMode ? (
-      <button
-        onClick={() => {
-          handleStripeSetup();
-        }}
-        className="w-full bg-[#800020] text-white py-4 rounded-2xl font-bold shadow-lg active:scale-95 transition-transform"
-      >
-        Πληρωμή Μεριδίου
-      </button>
-    ) : (
-      clientSecret ? (
-        <div className="mt-4 text-left">
-          <Elements key={clientSecret} stripe={stripePromise} options={{ clientSecret }}>
-            <UnifiedCheckoutForm
-              amount={Number(activeSplit.split_amount).toFixed(2)}
-              onSuccess={() => {
-                alert("✅ Η πληρωμή ολοκληρώθηκε επιτυχώς!");
-                setStripeMode(false);
-                setClientSecret(null);
-              }}
-            />
-          </Elements>
-        </div>
-      ) : (
-        <div className="py-4 text-center text-sm font-bold text-[#800020] animate-pulse">{t.bankConnecting}</div>
-      )
-    )}
-  </div>
-) : (
-  <div className="payment-options-container">
-    {!paymentMethod ? (
-      <div className="flex flex-col gap-3">
-        <button onClick={() => setPaymentMethod('full')} className="w-full p-4 rounded-2xl border-2 border-[#EADDCA] bg-white font-bold text-left hover:border-[#800020] transition-colors">
-          💰 {t.payAll}
-        </button>
-        <button onClick={() => setPaymentMethod('own')} className="w-full p-4 rounded-2xl border-2 border-[#EADDCA] bg-white font-bold text-left hover:border-[#800020] transition-colors">
-          🍽️ {t.payOwn}
-        </button>
-        <button onClick={() => setPaymentMethod('equal')} className="w-full p-4 rounded-2xl border-2 border-[#EADDCA] bg-white font-bold text-left hover:border-[#800020] transition-colors">
-          ➗ {t.splitBill}
-        </button>
-      </div>
-    ) : (
-      <div className="mb-8">
-        <button onClick={() => { setPaymentMethod(null); setStripeMode(false); setClientSecret(null); }} className="text-[#800020] text-sm font-bold mb-4">
-          ← {t.back}
-        </button>
-        
-        {paymentMethod === 'own' && (
-          <div className="bg-white p-4 rounded-2xl border border-[#EADDCA] mb-6 space-y-2">
-            <p className="text-sm font-bold mb-2">{t.chooseWhatToPay}</p>
-            {selectableItems.map((item) => (
-              <label key={item.id} className="flex justify-between items-center p-3 border border-transparent hover:bg-[#FDFCF0] cursor-pointer rounded-xl transition-colors">
-                <div className="flex items-center gap-3">
-                  <input type="checkbox" checked={selectedItemIds.includes(item.id)} onChange={() => {
-                    setSelectedItemIds(prev => prev.includes(item.id) ? prev.filter(id => id !== item.id) : [...prev, item.id]);
-                  }} className="w-5 h-5 accent-[#800020]" />
-                  <span className="font-medium">{item.name}</span>
-                </div>
-                <span className="font-bold text-[#800020]">{Number(item.price).toFixed(2)}€</span>
-              </label>
-            ))}
-          </div>
-        )}
-
-        {paymentMethod === 'equal' && (
-          <div className="bg-white p-4 rounded-2xl border border-[#EADDCA] mb-6 flex justify-between items-center">
-            <span className="font-bold">{t.people} <span className="text-sm font-normal text-gray-500">({t.remaining}: {totalUnpaid.toFixed(2)}€)</span></span>
-            <div className="flex gap-4 items-center">
-              <button onClick={() => setSplitCount(Math.max(2, splitCount - 1))} className="w-8 h-8 bg-gray-100 rounded-full font-bold flex items-center justify-center">-</button>
-              <span className="font-bold text-lg">{splitCount}</span>
-              <button onClick={() => setSplitCount(splitCount + 1)} className="w-8 h-8 bg-gray-100 rounded-full font-bold flex items-center justify-center">+</button>
+        <div className="fixed inset-0 z-[100] bg-black/30 backdrop-blur-md flex items-end">
+          <div className="bg-white w-full max-h-[90vh] overflow-y-auto rounded-t-[40px] p-8 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.1)] md:max-w-2xl md:mx-auto animate-in slide-in-from-bottom duration-300">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-black text-gray-900 tracking-tight"> {t.pay} </h2>
+              <button onClick={() => {setShowPaymentOptions(false); setPaymentMethod(null); setStripeMode(false); setClientSecret(null);}} className="font-bold text-sm text-gray-400 hover:text-gray-900 transition-colors uppercase tracking-wider">{t.close}</button>
             </div>
-          </div>
-        )}
 
-        <div className="flex flex-col gap-3 pt-2">
-          {!stripeMode ? (
-            <button onClick={handleStripeSetup} className="w-full bg-[#800020] text-white py-4 rounded-2xl font-bold shadow-lg active:scale-95 transition-transform">
-              💳 {t.pay} {amountToPay.toFixed(2)}€
-            </button>
-          ) : (
-            clientSecret ? (
-              <Elements key={clientSecret} stripe={stripePromise} options={{ clientSecret }}>
-               <UnifiedCheckoutForm
-                amount={amountToPay.toFixed(2)}
-                onSuccess={async () => {
-                  // 1. Ενημερώνουμε τη Supabase ότι τα πιάτα εξοφλήθηκαν!
-                  if (paymentMethod === 'own') {
-                    await supabase.from('order_items').update({ is_paid: true }).in('id', selectedItemIds);
-                  } else {
-                    // Αν πληρώνει όλο το ποσό (full), βρίσκουμε όλα τα απλήρωτα και τα κάνουμε paid
-                    const unpaidIds = unpaidDbItems.map(i => i.id);
-                    await supabase.from('order_items').update({ is_paid: true }).in('id', unpaidIds);
-                  }
+            {activeSplit ? (
+              <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100 mt-2 mb-6 text-center">
+                <h3 className="text-lg font-bold text-gray-900 mb-1">🔒 Ενεργή Μοιρασιά</h3>
+                <p className="text-xs text-gray-400 mb-4">
+                  Μέρη: {activeSplit.paid_parts} / {activeSplit.total_parts} εξοφλήθηκαν
+                </p>
+                <div className="bg-white rounded-2xl py-4 mb-6 border border-gray-100 shadow-sm">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{t.splitAmount}</p>
+                  <p className="text-3xl font-black text-gray-900 mt-1">{Number(activeSplit.split_amount).toFixed(2)}€</p>
+                </div>
 
-                  // 2. Κλείνουμε τα παράθυρα
-                  alert("✅ Η πληρωμή ολοκληρώθηκε επιτυχώς!");
-                  setShowPaymentOptions(false);
-                  setPaymentMethod(null);
-                  setStripeMode(false);
-                  setClientSecret(null);
-                  setSelectedItemIds([]);
-                }}
-              />
-              </Elements>
+                {!stripeMode ? (
+                  <button onClick={handleStripeSetup} className="w-full bg-[#800020] text-white py-4 rounded-2xl font-bold shadow-[0_8px_25px_rgba(128,0,32,0.25)]">
+                    Πληρωμή Μεριδίου
+                  </button>
+                ) : (
+                  clientSecret ? (
+                    <div className="mt-4 text-left">
+                      <Elements key={clientSecret} stripe={stripePromise} options={{ clientSecret }}>
+                        <UnifiedCheckoutForm
+                          amount={Number(activeSplit.split_amount).toFixed(2)}
+                          onSuccess={() => {
+                            alert("✅ Η πληρωμή ολοκληρώθηκε επιτυχώς!");
+                            setStripeMode(false);
+                            setClientSecret(null);
+                          }}
+                        />
+                      </Elements>
+                    </div>
+                  ) : (
+                    <div className="py-4 text-center text-sm font-bold text-[#800020] animate-pulse">{t.bankConnecting}</div>
+                  )
+                )}
+              </div>
             ) : (
-              <div className="py-4 text-center text-sm font-bold text-[#800020] animate-pulse">{t.bankConnecting}</div>
-            )
-          )}
-          
-          <button onClick={handleCashPayment} className="w-full border-2 border-[#800020] text-[#800020] py-4 rounded-2xl font-bold mt-2 hover:bg-white active:scale-95 transition-transform">
-            💵 {t.cash}
-          </button>
-        </div>
-                {/* --- PAYMENT TRUST SECTION --- */}
-        <div className="mt-8 pt-6 border-t border-[#EADDCA] text-center">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] mb-4">Secure Payment Partners</p>
-          
-          <div className="flex justify-center items-center gap-5 opacity-40 grayscale hover:grayscale-0 transition-all duration-500">
-            {/* Χρησιμοποιούμε απλά SVGs ή icons για μέγιστη ταχύτητα */}
-            <i className="fab fa-cc-visa text-2xl"></i>
-            <i className="fab fa-cc-mastercard text-2xl"></i>
-            <i className="fab fa-apple-pay text-3xl"></i>
-            <i className="fab fa-google-pay text-3xl"></i>
+              <div className="payment-options-container">
+                {!paymentMethod ? (
+                  <div className="flex flex-col gap-3">
+                    <button onClick={() => setPaymentMethod('full')} className="w-full p-5 rounded-2xl border border-gray-100 bg-gray-50 font-bold text-gray-900 text-left hover:bg-gray-100 transition-colors flex justify-between items-center">
+                      <span>💰 {t.payAll}</span> <span className="text-gray-400">→</span>
+                    </button>
+                    <button onClick={() => setPaymentMethod('own')} className="w-full p-5 rounded-2xl border border-gray-100 bg-gray-50 font-bold text-gray-900 text-left hover:bg-gray-100 transition-colors flex justify-between items-center">
+                      <span>🍽️ {t.payOwn}</span> <span className="text-gray-400">→</span>
+                    </button>
+                    <button onClick={() => setPaymentMethod('equal')} className="w-full p-5 rounded-2xl border border-gray-100 bg-gray-50 font-bold text-gray-900 text-left hover:bg-gray-100 transition-colors flex justify-between items-center">
+                      <span>➗ {t.splitBill}</span> <span className="text-gray-400">→</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mb-4">
+                    <button onClick={() => { setPaymentMethod(null); setStripeMode(false); setClientSecret(null); }} className="text-gray-400 hover:text-gray-900 text-xs font-bold mb-4 flex items-center gap-1">
+                      ← {t.back}
+                    </button>
+                    
+                    {paymentMethod === 'own' && (
+                      <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 mb-6 space-y-1 max-h-[30vh] overflow-y-auto">
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-2">{t.chooseWhatToPay}</p>
+                        {selectableItems.map((item) => (
+                          <label key={item.id} className="flex justify-between items-center p-3 hover:bg-white cursor-pointer rounded-xl transition-colors">
+                            <div className="flex items-center gap-3">
+                              <input type="checkbox" checked={selectedItemIds.includes(item.id)} onChange={() => {
+                                setSelectedItemIds(prev => prev.includes(item.id) ? prev.filter(id => id !== item.id) : [...prev, item.id]);
+                              }} className="w-5 h-5 accent-[#800020]" />
+                              <span className="font-medium text-gray-900">{item.name}</span>
+                            </div>
+                            <span className="font-bold text-gray-900">{Number(item.price).toFixed(2)}€</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+
+                    {paymentMethod === 'equal' && (
+                      <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100 mb-6 flex justify-between items-center">
+                        <span className="font-bold text-gray-900">{t.people} <span className="text-xs font-normal text-gray-400">({t.remaining}: {totalUnpaid.toFixed(2)}€)</span></span>
+                        <div className="flex gap-4 items-center bg-white p-1.5 rounded-full border border-gray-100 shadow-sm">
+                          <button onClick={() => setSplitCount(Math.max(2, splitCount - 1))} className="w-8 h-8 bg-gray-50 rounded-full font-bold flex items-center justify-center text-gray-900 hover:bg-gray-100">-</button>
+                          <span className="font-bold text-gray-900 min-w-[16px] text-center">{splitCount}</span>
+                          <button onClick={() => setSplitCount(splitCount + 1)} className="w-8 h-8 bg-gray-50 rounded-full font-bold flex items-center justify-center text-gray-900 hover:bg-gray-100">+</button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex flex-col gap-3 pt-2">
+                      {!stripeMode ? (
+                        <button onClick={handleStripeSetup} className="w-full bg-[#800020] text-white py-4 rounded-2xl font-bold shadow-[0_8px_25_rgba(128,0,32,0.25)]">
+                          💳 {t.pay} {amountToPay.toFixed(2)}€
+                        </button>
+                      ) : (
+                        clientSecret ? (
+                          <div className="mt-2 text-left">
+                            <Elements key={clientSecret} stripe={stripePromise} options={{ clientSecret }}>
+                              <UnifiedCheckoutForm
+                                amount={amountToPay.toFixed(2)}
+                                onSuccess={async () => {
+                                  if (paymentMethod === 'own') {
+                                    await supabase.from('order_items').update({ is_paid: true }).in('id', selectedItemIds);
+                                  } else {
+                                    const unpaidIds = unpaidDbItems.map(i => i.id);
+                                    await supabase.from('order_items').update({ is_paid: true }).in('id', unpaidIds);
+                                  }
+                                  alert("✅ Η πληρωμή ολοκληρώθηκε επιτυχώς!");
+                                  setShowPaymentOptions(false);
+                                  setPaymentMethod(null);
+                                  setStripeMode(false);
+                                  setClientSecret(null);
+                                  setSelectedItemIds([]);
+                                }}
+                              />
+                            </Elements>
+                          </div>
+                        ) : (
+                          <div className="py-4 text-center text-sm font-bold text-[#800020] animate-pulse">{t.bankConnecting}</div>
+                        )
+                      )}
+                      
+                      <button onClick={handleCashPayment} className="w-full border border-gray-200 text-gray-700 py-4 rounded-2xl font-bold mt-1 bg-gray-50 hover:bg-gray-100 transition-colors">
+                        💵 {t.cash}
+                      </button>
+                    </div>
+
+                    <div className="mt-8 pt-6 border-t border-gray-100 text-center">
+                      <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-3">Secure Payment</p>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+                        <p className="text-[11px] font-medium text-gray-400">
+                          Verified by <span className="text-gray-600 font-bold">Stripe</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          
-          <div className="mt-4 flex items-center justify-center gap-1.5">
-            <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-            <p className="text-[11px] font-bold text-gray-500">
-              Verified & Secure by <span className="text-[#635bff]">Stripe</span>
-            </p>
-          </div>
-        </div>
-      </div>
-    )}
-  </div>
-)}
-         </div>
         </div>
       )}
     </div>
