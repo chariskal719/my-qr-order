@@ -631,17 +631,27 @@ const sendOrder = async () => {
           ) : (
             clientSecret ? (
               <Elements key={clientSecret} stripe={stripePromise} options={{ clientSecret }}>
-                <UnifiedCheckoutForm
-                  amount={amountToPay.toFixed(2)}
-                  onSuccess={() => {
-                    alert("✅ Η πληρωμή ολοκληρώθηκε επιτυχώς!");
-                    setShowPaymentOptions(false);
-                    setPaymentMethod(null);
-                    setStripeMode(false);
-                    setClientSecret(null);
-                    setSelectedItemIds([]);
-                  }}
-                />
+               <UnifiedCheckoutForm
+                amount={amountToPay.toFixed(2)}
+                onSuccess={async () => {
+                  // 1. Ενημερώνουμε τη Supabase ότι τα πιάτα εξοφλήθηκαν!
+                  if (paymentMethod === 'own') {
+                    await supabase.from('order_items').update({ is_paid: true }).in('id', selectedItemIds);
+                  } else {
+                    // Αν πληρώνει όλο το ποσό (full), βρίσκουμε όλα τα απλήρωτα και τα κάνουμε paid
+                    const unpaidIds = unpaidDbItems.map(i => i.id);
+                    await supabase.from('order_items').update({ is_paid: true }).in('id', unpaidIds);
+                  }
+
+                  // 2. Κλείνουμε τα παράθυρα
+                  alert("✅ Η πληρωμή ολοκληρώθηκε επιτυχώς!");
+                  setShowPaymentOptions(false);
+                  setPaymentMethod(null);
+                  setStripeMode(false);
+                  setClientSecret(null);
+                  setSelectedItemIds([]);
+                }}
+              />
               </Elements>
             ) : (
               <div className="py-4 text-center text-sm font-bold text-[#800020] animate-pulse">{t.bankConnecting}</div>
