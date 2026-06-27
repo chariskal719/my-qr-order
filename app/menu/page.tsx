@@ -557,13 +557,25 @@ const sendOrder = async () => {
                     <div className="mt-4 text-left">
                       <Elements key={clientSecret} stripe={stripePromise} options={{ clientSecret }}>
                         <UnifiedCheckoutForm
-                          amount={Number(activeSplit.split_amount).toFixed(2)}
-                          onSuccess={() => {
-                            alert("✅ Η πληρωμή ολοκληρώθηκε επιτυχώς!");
-                            setStripeMode(false);
-                            setClientSecret(null);
-                          }}
-                        />
+                        amount={Number(activeSplit.split_amount).toFixed(2)}
+                        onSuccess={async () => {
+                          const newPaidParts = activeSplit.paid_parts + 1;
+                          
+                          if (newPaidParts >= activeSplit.total_parts) {
+                            // Αν πλήρωσε και ο ΤΕΛΕΥΤΑΙΟΣ: Μαρκάρουμε όλα τα πιάτα πληρωμένα και διαγράφουμε το split
+                            const unpaidIds = unpaidDbItems.map(i => i.id);
+                            await supabase.from('order_items').update({ is_paid: true }).in('id', unpaidIds);
+                            await supabase.from('active_splits').delete().eq('id', activeSplit.id);
+                          } else {
+                            // Αν πλήρωσαν οι πρώτοι: Απλά αυξάνουμε τον μετρητή των ατόμων
+                            await supabase.from('active_splits').update({ paid_parts: newPaidParts }).eq('id', activeSplit.id);
+                          }
+
+                          alert("✅ Η πληρωμή ολοκληρώθηκε επιτυχώς!");
+                          setStripeMode(false);
+                          setClientSecret(null);
+                        }}
+                      />
                       </Elements>
                     </div>
                   ) : (
@@ -629,22 +641,36 @@ const sendOrder = async () => {
                           <div className="mt-2 text-left">
                             <Elements key={clientSecret} stripe={stripePromise} options={{ clientSecret }}>
                               <UnifiedCheckoutForm
-                                amount={amountToPay.toFixed(2)}
-                                onSuccess={async () => {
-                                  if (paymentMethod === 'own') {
-                                    await supabase.from('order_items').update({ is_paid: true }).in('id', selectedItemIds);
-                                  } else {
-                                    const unpaidIds = unpaidDbItems.map(i => i.id);
-                                    await supabase.from('order_items').update({ is_paid: true }).in('id', unpaidIds);
-                                  }
-                                  alert("✅ Η πληρωμή ολοκληρώθηκε επιτυχώς!");
-                                  setShowPaymentOptions(false);
-                                  setPaymentMethod(null);
-                                  setStripeMode(false);
-                                  setClientSecret(null);
-                                  setSelectedItemIds([]);
-                                }}
-                              />
+                        amount={amountToPay.toFixed(2)}
+                        onSuccess={async () => {
+                          if (paymentMethod === 'own') {
+                            // 1. Πληρώνει τα δικά του: Ενημερώνουμε ΜΟΝΟ τα επιλεγμένα πιάτα
+                            await supabase.from('order_items').update({ is_paid: true }).in('id', selectedItemIds);
+                            
+                          } else if (paymentMethod === 'full') {
+                            // 2. Πληρώνει ΟΛΑ: Ενημερώνουμε όλα τα απλήρωτα πιάτα του τραπεζιού
+                            const unpaidIds = unpaidDbItems.map(i => i.id);
+                            await supabase.from('order_items').update({ is_paid: true }).in('id', unpaidIds);
+                            
+                          } else if (paymentMethod === 'equal') {
+                            // 3. Ρεφενέ (Πρώτη πληρωμή): ΔΕΝ εξοφλούμε τα πιάτα ακόμα!
+                            // Δημιουργούμε την ενεργή μοιρασιά στη βάση για να τη δουν όλοι.
+                            await supabase.from('active_splits').insert({
+                              table_number: tableNumber,
+                              total_parts: splitCount,
+                              paid_parts: 1,
+                              split_amount: amountToPay
+                            });
+                          }
+
+                          alert("✅ Η πληρωμή ολοκληρώθηκε επιτυχώς!");
+                          setShowPaymentOptions(false);
+                          setPaymentMethod(null);
+                          setStripeMode(false);
+                          setClientSecret(null);
+                          setSelectedItemIds([]);
+                        }}
+/>
                             </Elements>
                           </div>
                         ) : (
