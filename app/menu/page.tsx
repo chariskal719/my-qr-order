@@ -528,7 +528,6 @@ const sendOrder = async () => {
           </div>
         </div>
       )}
-
       {showPaymentOptions && (
         <div className="fixed inset-0 z-[100] bg-black/30 backdrop-blur-md flex items-end">
           <div className="bg-white w-full max-h-[90vh] overflow-y-auto rounded-t-[40px] p-8 pb-12 shadow-[0_-20px_50px_rgba(0,0,0,0.1)] md:max-w-2xl md:mx-auto animate-in slide-in-from-bottom duration-300">
@@ -537,16 +536,19 @@ const sendOrder = async () => {
               <button onClick={() => {setShowPaymentOptions(false); setPaymentMethod(null); setStripeMode(false); setClientSecret(null);}} className="font-bold text-sm text-gray-400 hover:text-gray-900 transition-colors uppercase tracking-wider">{t.close}</button>
             </div>
 
-            {/* --- ΣΕΝΑΡΙΟ: ΥΠΑΡΧΕΙ ΗΔΗ ΕΝΕΡΓΟΣ ΡΕΦΕΝΕΣ --- */}
+            {/* --- ΣΤΑΔΙΟ 2: ΥΠΑΡΧΕΙ ΗΔΗ ΚΛΕΙΔΩΜΕΝΟΣ ΡΕΦΕΝΕΣ --- */}
             {activeSplit ? (
               <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100 mt-2 mb-6 text-center">
-                <h3 className="text-xl font-black text-gray-900 mb-2">🔒 Λογαριασμός Κλειδωμένος</h3>
+                <div className="mb-4 inline-flex items-center justify-center w-12 h-12 bg-[#800020]/10 text-[#800020] rounded-full text-2xl">
+                  🔒
+                </div>
+                <h3 className="text-xl font-black text-gray-900 mb-2">Λογαριασμός Κλειδωμένος</h3>
                 
-                <p className="text-sm font-bold text-[#800020] mb-1">
-                  Ενεργό Ρεφενέ: Πλήρωσαν {activeSplit.paid_parts} / {activeSplit.total_parts}
+                <p className="text-sm font-bold text-gray-900 mb-1">
+                  Πλήρωσαν <span className="text-[#800020]">{activeSplit.paid_parts}</span> από <span className="text-[#800020]">{activeSplit.total_parts}</span> άτομα
                 </p>
                 <p className="text-xs text-gray-500 mb-6 font-medium">
-                  Υπόλοιπο Τραπεζιού: {(Number(activeSplit.split_amount) * (activeSplit.total_parts - activeSplit.paid_parts)).toFixed(2)}€
+                  Απομένουν: {(Number(activeSplit.split_amount) * (activeSplit.total_parts - activeSplit.paid_parts)).toFixed(2)}€ για το τραπέζι
                 </p>
 
                 <div className="bg-white rounded-2xl py-5 mb-6 border border-gray-100 shadow-sm">
@@ -568,19 +570,17 @@ const sendOrder = async () => {
                             const newPaidParts = activeSplit.paid_parts + 1;
                             
                             if (newPaidParts >= activeSplit.total_parts) {
-                              // Πλήρωσε και ο τελευταίος: Εξοφλούμε τα πιάτα και διαγράφουμε το split
+                              // ΠΛΗΡΩΣΕ ΚΑΙ Ο ΤΕΛΕΥΤΑΙΟΣ: Εξοφλούμε τα πιάτα και σβήνουμε το κλείδωμα
                               const unpaidIds = unpaidDbItems.map(i => i.id);
                               await supabase.from('order_items').update({ is_paid: true }).in('id', unpaidIds);
                               await supabase.from('active_splits').delete().eq('id', activeSplit.id);
                             } else {
-                              // Ενημερώνουμε το κλάσμα (π.χ. από 1/3 σε 2/3)
+                              // ΠΛΗΡΩΣΕ ΕΝΔΙΑΜΕΣΟΣ: Απλά αυξάνουμε το μετρητή των ατόμων που πλήρωσαν
                               await supabase.from('active_splits').update({ paid_parts: newPaidParts }).eq('id', activeSplit.id);
                             }
 
-                            alert("✅ Η πληρωμή επιβεβαιώθηκε!");
-                            setStripeMode(false);
-                            setClientSecret(null);
-                            setShowPaymentOptions(false);
+                            alert("✅ Η πληρωμή του μεριδίου σου ολοκληρώθηκε!");
+                            window.location.reload(); // Σκληρό reload για να διαβάσει αμέσως τη νέα κατάσταση
                           }}
                         />
                       </Elements>
@@ -591,7 +591,7 @@ const sendOrder = async () => {
                 )}
               </div>
             ) : (
-              /* --- ΣΕΝΑΡΙΟ: ΝΕΑ ΠΛΗΡΩΜΗ (ΟΙ 3 ΕΠΙΛΟΓΕΣ) --- */
+              /* --- ΣΤΑΔΙΟ 1: ΝΕΑ ΠΛΗΡΩΜΗ (ΕΠΙΛΟΓΗ ΜΕΘΟΔΟΥ) --- */
               <div className="payment-options-container">
                 {!paymentMethod ? (
                   <div className="flex flex-col gap-3">
@@ -611,6 +611,7 @@ const sendOrder = async () => {
                       ← {t.back}
                     </button>
                     
+                    {/* UI για 'Δικά μου' */}
                     {paymentMethod === 'own' && (
                       <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 mb-6 space-y-1 max-h-[30vh] overflow-y-auto">
                         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-2">{t.chooseWhatToPay}</p>
@@ -628,6 +629,7 @@ const sendOrder = async () => {
                       </div>
                     )}
 
+                    {/* UI για 'Ρεφενέ' */}
                     {paymentMethod === 'equal' && (
                       <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100 mb-6 flex justify-between items-center">
                         <span className="font-bold text-gray-900">{t.people} <span className="text-xs font-normal text-gray-400">({t.remaining}: {totalUnpaid.toFixed(2)}€)</span></span>
@@ -651,27 +653,31 @@ const sendOrder = async () => {
                               <UnifiedCheckoutForm
                                 amount={amountToPay.toFixed(2)}
                                 onSuccess={async () => {
+                                  
                                   if (paymentMethod === 'own') {
+                                    // Πληρώνει τα δικά του
                                     await supabase.from('order_items').update({ is_paid: true }).in('id', selectedItemIds);
                                   } else if (paymentMethod === 'full') {
+                                    // Πληρώνει τα πάντα
                                     const unpaidIds = unpaidDbItems.map(i => i.id);
                                     await supabase.from('order_items').update({ is_paid: true }).in('id', unpaidIds);
                                   } else if (paymentMethod === 'equal') {
-                                    // Εδώ δημιουργείται η Ενεργή Μοιρασιά (ΔΕΝ σβήνουμε τα πιάτα ακόμα)
-                                    await supabase.from('active_splits').insert([{
+                                    // ΕΔΩ ΚΛΕΙΔΩΝΕΙ Ο ΡΕΦΕΝΕΣ: Γράφει στη βάση και ΔΕΝ διαγράφει τα πιάτα
+                                    const { error } = await supabase.from('active_splits').insert([{
                                       table_number: tableNumber,
                                       total_parts: splitCount,
                                       paid_parts: 1,
                                       split_amount: amountToPay
                                     }]);
+
+                                    if (error) {
+                                      alert("Σφάλμα κλειδώματος: " + error.message);
+                                      return;
+                                    }
                                   }
 
-                                  alert("✅ Η πληρωμή ολοκληρώθηκε επιτυχώς!");
-                                  setShowPaymentOptions(false);
-                                  setPaymentMethod(null);
-                                  setStripeMode(false);
-                                  setClientSecret(null);
-                                  setSelectedItemIds([]);
+                                  alert("✅ Η πρώτη πληρωμή ολοκληρώθηκε επιτυχώς!");
+                                  window.location.reload(); // Reload για να εμφανιστεί αμέσως το κλειδωμένο UI
                                 }}
                               />
                             </Elements>
@@ -692,6 +698,7 @@ const sendOrder = async () => {
           </div>
         </div>
       )}
+      
     </div>
   );
 }
