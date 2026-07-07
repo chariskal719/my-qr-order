@@ -251,15 +251,20 @@ const handleStripeSetup = async () => {
     if (amountToPay <= 0) return;
     setStripeMode(true);
     
+    // Διορθώνουμε τα δεδομένα που στέλνουμε στην τράπεζα αν είναι κλειδωμένο!
+    const currentType = activeSplit ? 'equal' : paymentMethod;
+    const currentParts = activeSplit ? activeSplit.total_parts : (paymentMethod === 'equal' ? splitCount : 1);
+    
     try {
       const response = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          type: paymentMethod, // 'full', 'own', 'equal'
+          type: currentType, 
           tableNumber, 
           itemIds: paymentMethod === 'own' ? selectedItemIds : [],
-          splitCount: paymentMethod === 'equal' ? splitCount : 1
+          splitCount: currentParts,
+          amount: amountToPay // Το στέλνουμε καλού-κακού αν το χρειάζεται το backend
         }),
       });
       const data = await response.json();
@@ -267,11 +272,11 @@ const handleStripeSetup = async () => {
         setClientSecret(data.clientSecret);
       } else { 
         setStripeMode(false); 
-        alert("Σφάλμα επικοινωνίας με την τράπεζα."); 
+        alert("Σφάλμα επικοινωνίας με την τράπεζα: Το backend δεν επέστρεψε κωδικό."); 
       }
     } catch (err) { 
       setStripeMode(false); 
-      alert("Πρόβλημα σύνδεσης."); 
+      alert("Πρόβλημα σύνδεσης με τον server."); 
     }
   };
 
