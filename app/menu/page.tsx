@@ -184,11 +184,13 @@ useEffect(() => {
     if (!tableNumber) return;
 
     const fetchCartAndSplit = async () => {
+      const tableId = Number(tableNumber); // 🟢 Το μετατρέπουμε ΣΙΓΟΥΡΑ σε αριθμό
+
       // 1. Φέρνουμε τα πιάτα του τραπεζιού
       const { data: cartData } = await supabase
         .from('order_items')
         .select('*')
-        .eq('table_number', tableNumber);
+        .eq('table_number', tableId);
       
       if (cartData) setDbCart(cartData);
 
@@ -196,7 +198,7 @@ useEffect(() => {
       const { data: splitData } = await supabase
         .from('active_splits')
         .select('*')
-        .eq('table_number', tableNumber)
+        .eq('table_number', tableId)
         .limit(1);
 
       if (splitData && splitData.length > 0) {
@@ -208,16 +210,16 @@ useEffect(() => {
 
     fetchCartAndSplit();
 
-    // 3. Ζωντανή ανανέωση (Realtime) ΚΑΙ για τα πιάτα ΚΑΙ για τα splits!
+    // 3. Ζωντανή ανανέωση (Realtime)
     const channel = supabase.channel('menu_realtime')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'order_items', filter: `table_number=eq.${tableNumber}` },
+        { event: '*', schema: 'public', table: 'order_items', filter: `table_number=eq.${Number(tableNumber)}` },
         () => { fetchCartAndSplit(); }
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'active_splits', filter: `table_number=eq.${tableNumber}` },
+        { event: '*', schema: 'public', table: 'active_splits', filter: `table_number=eq.${Number(tableNumber)}` },
         () => { fetchCartAndSplit(); }
       )
       .subscribe();
@@ -353,23 +355,6 @@ const sendOrder = async () => {
 
   return (
     <div className="min-h-screen bg-[#F9FAFB] text-gray-900 pb-32 font-sans selection:bg-black selection:text-white">
-
-      {/* --- ΚΟΥΤΙ ΔΙΑΓΝΩΣΗΣ (ΘΑ ΤΟ ΣΒΗΣΟΥΜΕ ΜΟΛΙΣ ΒΡΟΥΜΕ ΤΟ ΛΑΘΟΣ) --- */}
-      <div className="bg-red-600 text-white p-4 text-xs font-mono relative z-[999] shadow-lg">
-        <p className="font-bold mb-2">🔍 DEBUG MODE</p>
-        <p>Τραπέζι URL: "{tableNumber}"</p>
-        <p>Μεταβλητή activeSplit: {activeSplit ? "ΥΠΑΡΧΕΙ 🔒" : "ΚΕΝΗ (NULL)"}</p>
-        <button 
-          onClick={async () => {
-            const { data, error } = await supabase.from('active_splits').select('*');
-            if (error) alert("ΣΦΑΛΜΑ ΒΑΣΗΣ: " + error.message);
-            else alert("ΤΙ ΕΧΕΙ Η ΒΑΣΗ ΜΕΣΑ: " + JSON.stringify(data));
-          }} 
-          className="mt-3 bg-white text-red-600 px-4 py-2 rounded font-bold w-full uppercase"
-        >
-          Έλεγχος Βάσης Δεδομένων
-        </button>
-      </div>
       
       {/* --- STICKY HEADER & CATEGORIES (NEXT-GEN UI) --- */}
       <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-gray-100 transition-all">
