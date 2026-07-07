@@ -184,41 +184,31 @@ useEffect(() => {
     if (!tableNumber) return;
 
     const fetchCartAndSplit = async () => {
+      // Φέρνουμε τα πιάτα
       const { data: cartData } = await supabase
         .from('order_items')
         .select('*')
         .eq('table_number', tableNumber);
-      
       if (cartData) setDbCart(cartData);
 
-      // ΒΑΖΟΥΜΕ ΤΟ order() ΓΙΑ ΝΑ ΕΡΧΕΤΑΙ ΠΑΝΤΑ ΤΟ ΠΙΟ ΠΡΟΣΦΑΤΟ, ΑΓΝΟΩΝΤΑΣ ΤΑ ΖΟΜΠΙ
-      // Αλλαγή στο SELECT της βάσης για να μην "κολλάει" σε παλιές εγγραφές
+      // Φέρνουμε το split (χωρίς περιττά φίλτρα, μόνο με το τραπέζι)
       const { data: allSplits } = await supabase
         .from('active_splits')
-        .select('*', { count: 'exact', head: false }) // Το {count: 'exact'} αναγκάζει τη Supabase να φέρει φρέσκα δεδομένα
-        .order('created_at', { ascending: false }); 
+        .select('*')
+        .eq('table_number', tableNumber);
 
-      if (allSplits) {
-        const mySplit = allSplits.find(s => String(s.table_number) === String(tableNumber));
-        if (mySplit) {
-          setActiveSplit(mySplit);
-          setShowPaymentOptions(true);
-        } else {
-          setActiveSplit(null);
-        }
+      if (allSplits && allSplits.length > 0) {
+        // Παίρνουμε την τελευταία εγγραφή
+        setActiveSplit(allSplits[allSplits.length - 1]);
+      } else {
+        setActiveSplit(null);
       }
     };
 
     fetchCartAndSplit();
-
-    const channel = supabase.channel('menu_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, () => { fetchCartAndSplit(); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'active_splits' }, () => { fetchCartAndSplit(); })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    
+    // Αφαιρούμε το Realtime για να μην έχουμε συγκρούσεις κατά το reload
+    // Αφήνουμε τη σελίδα να διαβάζει τη βάση με το που κάνει reload
   }, [tableNumber]);
  
   
@@ -577,37 +567,18 @@ const sendOrder = async () => {
                           onSuccess={async () => {
                             const currentPaid = Number(activeSplit.paid_parts);
                             const totalParts = Number(activeSplit.total_parts);
-                            const newPaidParts = currentPaid + 1;
                             
-                            // 1. Βλέπουμε ποιο ID προσπαθεί να κάνει update!
-                            alert(`Προσπάθεια Update στη γραμμή με ID: ${activeSplit.id}`);
-
-                            if (newPaidParts >= totalParts) {
-                              const unpaidIds = unpaidDbItems.map(i => i.id);
-                              await supabase.from('order_items').update({ is_paid: true }).in('id', unpaidIds);
+                            if (currentPaid + 1 >= totalParts) {
+                              // Εξόφληση
+                              await supabase.from('order_items').update({ is_paid: true }).eq('table_number', tableNumber);
                               await supabase.from('active_splits').delete().eq('id', activeSplit.id);
                             } else {
-                              // 2. Ζητάμε από τη Supabase να μας επιστρέψει (.select) αυτό που μόλις έγραψε!
-                              const { data: updatedData, error: updateError } = await supabase
-                                .from('active_splits')
-                                .update({ paid_parts: newPaidParts })
-                                .eq('id', activeSplit.id)
-                                .select();
-
-                              if (updateError) {
-                                alert("🚨 ΣΦΑΛΜΑ ΒΑΣΗΣ: " + updateError.message);
-                                return;
-                              }
-
-                              // Αν γυρίσει άδειο, σημαίνει ότι το ID δεν υπήρχε!
-                              if (!updatedData || updatedData.length === 0) {
-                                alert(`🚨 ΑΠΟΤΥΧΙΑ: Η βάση δε βρήκε καμία γραμμή με ID ${activeSplit.id} για να ενημερώσει!`);
-                                return; // Σταματάει εδώ για να μην κάνει reload και χαθεί το error
-                              }
+                              // Update μετρητή
+                              await supabase.from('active_splits').update({ paid_parts: currentPaid + 1 }).eq('id', activeSplit.id);
                             }
-
-                            alert(`✅ Επιτυχία! Η βάση έγραψε: ${newPaidParts}/${totalParts}`);
-                            window.location.replace(window.location.pathname + window.location.search); 
+                            
+                            // Απλό reload, χωρίς περίεργα timeouts
+                            window.location.reload();
                           }}
                         />
                       </Elements>
