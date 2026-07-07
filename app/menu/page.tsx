@@ -181,42 +181,51 @@ function MenuContent() {
   
 
  useEffect(() => {
-  const fetchCartAndSplit = async () => {
-    // 1. Φέρνουμε τα πιάτα του τραπεζιού
-    const { data: cartData } = await supabase
-      .from('order_items')
-      .select('*')
-      .eq('table_number', tableNumber);
-    if (cartData) setDbCart(cartData);
+    if (!tableNumber) return;
 
-    // 2. Ελέγχουμε αν υπάρχει "κλειδωμένο" Split για αυτό το τραπέζι
-    const { data: splitData } = await supabase
-      .from('active_splits')
-      .select('*')
-      .eq('table_number', tableNumber)
-      .maybeSingle(); // Το maybeSingle δεν πετάει error αν δεν βρει τίποτα
-    
-    if (splitData) {
-      setActiveSplit(splitData);
-    } else {
-      setActiveSplit(null);
-    }
-  };
+    const fetchCartAndSplit = async () => {
+      // 1. Φέρνουμε τα πιάτα του τραπεζιού
+      const { data: cartData } = await supabase
+        .from('order_items')
+        .select('*')
+        .eq('table_number', tableNumber);
+      
+      if (cartData) setDbCart(cartData);
 
-  fetchCartAndSplit();
+      // 2. Ελέγχουμε αν υπάρχει "κλειδωμένο" Split για αυτό το τραπέζι
+      const { data: splitData } = await supabase
+        .from('active_splits')
+        .select('*')
+        .eq('table_number', tableNumber)
+        .maybeSingle();
 
-  // 3. Ο υπάρχων κώδικας σου για live ανανέωση (Realtime)
-  const channel = supabase.channel('menu_realtime')
-  // 1. Ακούει τα πιάτα
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, 
-  () => { fetchCartAndSplit(); })
-  // 2. Ακούει ΚΑΙ τα splits (ώστε να βλέπουν όλοι την ανανέωση αμέσως!)
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'active_splits' }, 
-  () => { fetchCartAndSplit(); })
-  .subscribe();
+      if (splitData) {
+        setActiveSplit(splitData);
+      } else {
+        setActiveSplit(null);
+      }
+    };
 
-return () => { supabase.removeChannel(channel); };
-}, [tableNumber]);
+    fetchCartAndSplit();
+
+    // 3. Ζωντανή ανανέωση (Realtime) ΚΑΙ για τα πιάτα ΚΑΙ για τα splits!
+    const channel = supabase.channel('menu_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'order_items', filter: `table_number=eq.${tableNumber}` },
+        () => { fetchCartAndSplit(); }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'active_splits', filter: `table_number=eq.${tableNumber}` },
+        () => { fetchCartAndSplit(); }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [tableNumber]);
 
   
 
