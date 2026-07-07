@@ -184,44 +184,38 @@ useEffect(() => {
     if (!tableNumber) return;
 
     const fetchCartAndSplit = async () => {
-      const tableId = Number(tableNumber); // 🟢 Το μετατρέπουμε ΣΙΓΟΥΡΑ σε αριθμό
-
-      // 1. Φέρνουμε τα πιάτα του τραπεζιού
+      // 1. Φέρνουμε τα πιάτα (εδώ δουλεύει κανονικά)
       const { data: cartData } = await supabase
         .from('order_items')
         .select('*')
-        .eq('table_number', tableId);
+        .eq('table_number', tableNumber);
       
       if (cartData) setDbCart(cartData);
 
-      // 2. Ελέγχουμε αν υπάρχει "κλειδωμένο" Split για αυτό το τραπέζι
-      const { data: splitData } = await supabase
+      // 2. ΑΛΑΝΘΑΣΤΟΣ ΤΡΟΠΟΣ: Τραβάμε ΟΛΑ τα ρεφενέ και τα ταιριάζουμε τοπικά!
+      const { data: allSplits } = await supabase
         .from('active_splits')
-        .select('*')
-        .eq('table_number', tableId)
-        .limit(1);
+        .select('*');
 
-      if (splitData && splitData.length > 0) {
-        setActiveSplit(splitData[0]);
-      } else {
-        setActiveSplit(null);
+      if (allSplits) {
+        // Το String(...) διασφαλίζει ότι θα ταιριάξουν 100%, είτε είναι κείμενο είτε αριθμός
+        const mySplit = allSplits.find(s => String(s.table_number) === String(tableNumber));
+        
+        if (mySplit) {
+          setActiveSplit(mySplit);
+          setShowPaymentOptions(true); // Ανοίγει μόνο του το παράθυρο με το λουκέτο στο UI!
+        } else {
+          setActiveSplit(null);
+        }
       }
     };
 
     fetchCartAndSplit();
 
-    // 3. Ζωντανή ανανέωση (Realtime)
+    // 3. Ζωντανή ανανέωση (αφαιρέσαμε τα φίλτρα για να "ακούει" τα πάντα χωρίς να μπλοκάρει)
     const channel = supabase.channel('menu_realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'order_items', filter: `table_number=eq.${Number(tableNumber)}` },
-        () => { fetchCartAndSplit(); }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'active_splits', filter: `table_number=eq.${Number(tableNumber)}` },
-        () => { fetchCartAndSplit(); }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, () => { fetchCartAndSplit(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'active_splits' }, () => { fetchCartAndSplit(); })
       .subscribe();
 
     return () => {
