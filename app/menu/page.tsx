@@ -192,9 +192,10 @@ useEffect(() => {
       if (cartData) setDbCart(cartData);
 
       // ΒΑΖΟΥΜΕ ΤΟ order() ΓΙΑ ΝΑ ΕΡΧΕΤΑΙ ΠΑΝΤΑ ΤΟ ΠΙΟ ΠΡΟΣΦΑΤΟ, ΑΓΝΟΩΝΤΑΣ ΤΑ ΖΟΜΠΙ
+      // Αλλαγή στο SELECT της βάσης για να μην "κολλάει" σε παλιές εγγραφές
       const { data: allSplits } = await supabase
         .from('active_splits')
-        .select('*')
+        .select('*', { count: 'exact', head: false }) // Το {count: 'exact'} αναγκάζει τη Supabase να φέρει φρέσκα δεδομένα
         .order('created_at', { ascending: false }); 
 
       if (allSplits) {
@@ -606,7 +607,7 @@ const sendOrder = async () => {
                             }
 
                             alert(`✅ Επιτυχία! Η βάση έγραψε: ${newPaidParts}/${totalParts}`);
-                            window.location.reload(); 
+                            window.location.replace(window.location.pathname + window.location.search); 
                           }}
                         />
                       </Elements>
