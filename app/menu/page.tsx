@@ -184,7 +184,6 @@ useEffect(() => {
     if (!tableNumber) return;
 
     const fetchCartAndSplit = async () => {
-      // 1. Φέρνουμε τα πιάτα (εδώ δουλεύει κανονικά)
       const { data: cartData } = await supabase
         .from('order_items')
         .select('*')
@@ -192,18 +191,17 @@ useEffect(() => {
       
       if (cartData) setDbCart(cartData);
 
-      // 2. ΑΛΑΝΘΑΣΤΟΣ ΤΡΟΠΟΣ: Τραβάμε ΟΛΑ τα ρεφενέ και τα ταιριάζουμε τοπικά!
+      // ΒΑΖΟΥΜΕ ΤΟ order() ΓΙΑ ΝΑ ΕΡΧΕΤΑΙ ΠΑΝΤΑ ΤΟ ΠΙΟ ΠΡΟΣΦΑΤΟ, ΑΓΝΟΩΝΤΑΣ ΤΑ ΖΟΜΠΙ
       const { data: allSplits } = await supabase
         .from('active_splits')
-        .select('*');
+        .select('*')
+        .order('created_at', { ascending: false }); 
 
       if (allSplits) {
-        // Το String(...) διασφαλίζει ότι θα ταιριάξουν 100%, είτε είναι κείμενο είτε αριθμός
         const mySplit = allSplits.find(s => String(s.table_number) === String(tableNumber));
-        
         if (mySplit) {
           setActiveSplit(mySplit);
-          setShowPaymentOptions(true); // Ανοίγει μόνο του το παράθυρο με το λουκέτο στο UI!
+          setShowPaymentOptions(true);
         } else {
           setActiveSplit(null);
         }
@@ -212,7 +210,6 @@ useEffect(() => {
 
     fetchCartAndSplit();
 
-    // 3. Ζωντανή ανανέωση (αφαιρέσαμε τα φίλτρα για να "ακούει" τα πάντα χωρίς να μπλοκάρει)
     const channel = supabase.channel('menu_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, () => { fetchCartAndSplit(); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'active_splits' }, () => { fetchCartAndSplit(); })
@@ -577,20 +574,24 @@ const sendOrder = async () => {
                         <UnifiedCheckoutForm
                           amount={Number(activeSplit.split_amount).toFixed(2)}
                           onSuccess={async () => {
-                            const newPaidParts = activeSplit.paid_parts + 1;
+                            // Μετατρέπουμε ρητά σε αριθμούς για να μην μπερδευτεί ποτέ η Javascript
+                            const currentPaid = Number(activeSplit.paid_parts);
+                            const totalParts = Number(activeSplit.total_parts);
+                            const newPaidParts = currentPaid + 1;
                             
-                            if (newPaidParts >= activeSplit.total_parts) {
+                            if (newPaidParts >= totalParts) {
                               // ΠΛΗΡΩΣΕ ΚΑΙ Ο ΤΕΛΕΥΤΑΙΟΣ: Εξοφλούμε τα πιάτα και σβήνουμε το κλείδωμα
                               const unpaidIds = unpaidDbItems.map(i => i.id);
                               await supabase.from('order_items').update({ is_paid: true }).in('id', unpaidIds);
                               await supabase.from('active_splits').delete().eq('id', activeSplit.id);
                             } else {
-                              // ΠΛΗΡΩΣΕ ΕΝΔΙΑΜΕΣΟΣ: Απλά αυξάνουμε το μετρητή των ατόμων που πλήρωσαν
+                              // ΠΛΗΡΩΣΕ ΕΝΔΙΑΜΕΣΟΣ: Απλά αυξάνουμε το μετρητή
                               await supabase.from('active_splits').update({ paid_parts: newPaidParts }).eq('id', activeSplit.id);
                             }
 
-                            alert("✅ Η πληρωμή του μεριδίου σου ολοκληρώθηκε!");
-                            window.location.reload(); // Σκληρό reload για να διαβάσει αμέσως τη νέα κατάσταση
+                            // Νέο alert που σου επιβεβαιώνει ποιος πλήρωσε!
+                            alert(`✅ Η πληρωμή ολοκληρώθηκε! (${newPaidParts}/${totalParts})`);
+                            window.location.reload(); 
                           }}
                         />
                       </Elements>
