@@ -574,23 +574,38 @@ const sendOrder = async () => {
                         <UnifiedCheckoutForm
                           amount={Number(activeSplit.split_amount).toFixed(2)}
                           onSuccess={async () => {
-                            // Μετατρέπουμε ρητά σε αριθμούς για να μην μπερδευτεί ποτέ η Javascript
                             const currentPaid = Number(activeSplit.paid_parts);
                             const totalParts = Number(activeSplit.total_parts);
                             const newPaidParts = currentPaid + 1;
                             
+                            // 1. Βλέπουμε ποιο ID προσπαθεί να κάνει update!
+                            alert(`Προσπάθεια Update στη γραμμή με ID: ${activeSplit.id}`);
+
                             if (newPaidParts >= totalParts) {
-                              // ΠΛΗΡΩΣΕ ΚΑΙ Ο ΤΕΛΕΥΤΑΙΟΣ: Εξοφλούμε τα πιάτα και σβήνουμε το κλείδωμα
                               const unpaidIds = unpaidDbItems.map(i => i.id);
                               await supabase.from('order_items').update({ is_paid: true }).in('id', unpaidIds);
                               await supabase.from('active_splits').delete().eq('id', activeSplit.id);
                             } else {
-                              // ΠΛΗΡΩΣΕ ΕΝΔΙΑΜΕΣΟΣ: Απλά αυξάνουμε το μετρητή
-                              await supabase.from('active_splits').update({ paid_parts: newPaidParts }).eq('id', activeSplit.id);
+                              // 2. Ζητάμε από τη Supabase να μας επιστρέψει (.select) αυτό που μόλις έγραψε!
+                              const { data: updatedData, error: updateError } = await supabase
+                                .from('active_splits')
+                                .update({ paid_parts: newPaidParts })
+                                .eq('id', activeSplit.id)
+                                .select();
+
+                              if (updateError) {
+                                alert("🚨 ΣΦΑΛΜΑ ΒΑΣΗΣ: " + updateError.message);
+                                return;
+                              }
+
+                              // Αν γυρίσει άδειο, σημαίνει ότι το ID δεν υπήρχε!
+                              if (!updatedData || updatedData.length === 0) {
+                                alert(`🚨 ΑΠΟΤΥΧΙΑ: Η βάση δε βρήκε καμία γραμμή με ID ${activeSplit.id} για να ενημερώσει!`);
+                                return; // Σταματάει εδώ για να μην κάνει reload και χαθεί το error
+                              }
                             }
 
-                            // Νέο alert που σου επιβεβαιώνει ποιος πλήρωσε!
-                            alert(`✅ Η πληρωμή ολοκληρώθηκε! (${newPaidParts}/${totalParts})`);
+                            alert(`✅ Επιτυχία! Η βάση έγραψε: ${newPaidParts}/${totalParts}`);
                             window.location.reload(); 
                           }}
                         />
