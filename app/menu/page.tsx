@@ -182,28 +182,33 @@ function MenuContent() {
   
 useEffect(() => {
     if (!tableNumber) return;
-
     const fetchCartAndSplit = async () => {
-      // Φέρνουμε τα πιάτα
+      const currentTable = String(tableNumber); // Αυστηρά string
+
+      // Φέρνουμε τα πιάτα του τραπεζιού
       const { data: cartData } = await supabase
         .from('order_items')
         .select('*')
-        .eq('table_number', tableNumber);
+        .eq('table_number', currentTable);
+      
       if (cartData) setDbCart(cartData);
 
-      // Φέρνουμε το split (χωρίς περιττά φίλτρα, μόνο με το τραπέζι)
-      const { data: allSplits } = await supabase
+      // Φέρνουμε ΜΟΝΟ το τελευταίο split για ΑΥΤΟ το τραπέζι
+      const { data: splitData } = await supabase
         .from('active_splits')
         .select('*')
-        .eq('table_number', tableNumber);
+        .eq('table_number', currentTable)
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-      if (allSplits && allSplits.length > 0) {
-        // Παίρνουμε την τελευταία εγγραφή
-        setActiveSplit(allSplits[allSplits.length - 1]);
+      if (splitData && splitData.length > 0) {
+        setActiveSplit(splitData[0]);
+        setShowPaymentOptions(true);
       } else {
         setActiveSplit(null);
       }
     };
+    
 
     fetchCartAndSplit();
     
@@ -565,21 +570,32 @@ const sendOrder = async () => {
                         <UnifiedCheckoutForm
                           amount={Number(activeSplit.split_amount).toFixed(2)}
                           onSuccess={async () => {
-                            const currentPaid = Number(activeSplit.paid_parts);
-                            const totalParts = Number(activeSplit.total_parts);
-                            
-                            if (currentPaid + 1 >= totalParts) {
-                              // Εξόφληση
-                              await supabase.from('order_items').update({ is_paid: true }).eq('table_number', tableNumber);
-                              await supabase.from('active_splits').delete().eq('id', activeSplit.id);
-                            } else {
-                              // Update μετρητή
-                              await supabase.from('active_splits').update({ paid_parts: currentPaid + 1 }).eq('id', activeSplit.id);
-                            }
-                            
-                            // Απλό reload, χωρίς περίεργα timeouts
-                            window.location.reload();
-                          }}
+                  const currentTable = String(tableNumber);
+                  
+                  if (paymentMethod === 'equal' && !activeSplit) {
+                    // ΚΑΘΑΡΙΣΜΟΣ: Πριν γράψουμε το νέο split, σβήνουμε ό,τι παλιό για αυτό το τραπέζι!
+                    await supabase.from('active_splits').delete().eq('table_number', currentTable);
+                    
+                    // Εγγραφή του νέου
+                    await supabase.from('active_splits').insert([{
+                      table_number: currentTable,
+                      total_parts: splitCount,
+                      paid_parts: 1,
+                      split_amount: amountToPay
+                    }]);
+                  } else if (activeSplit) {
+                    // Ενημέρωση (Update)
+                    const newPaid = Number(activeSplit.paid_parts) + 1;
+                    if (newPaid >= Number(activeSplit.total_parts)) {
+                      await supabase.from('order_items').update({ is_paid: true }).eq('table_number', currentTable);
+                      await supabase.from('active_splits').delete().eq('id', activeSplit.id);
+                    } else {
+                      await supabase.from('active_splits').update({ paid_parts: newPaid }).eq('id', activeSplit.id);
+                    }
+                  }
+
+                  window.location.reload();
+                }}
                         />
                       </Elements>
                     </div>
