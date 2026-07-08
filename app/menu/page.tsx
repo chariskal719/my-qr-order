@@ -181,40 +181,71 @@ function MenuContent() {
   const [activeSplit, setActiveSplit] = useState<any>(null);
   
 useEffect(() => {
-    if (!tableNumber) return;
+  if (!tableNumber) return;
 
-    const fetchCartAndSplit = async () => {
-      const currentTable = String(tableNumber);
+  // 1. Η συνάρτηση που τραβάει τα αρχικά δεδομένα
+  const fetchCartAndSplit = async () => {
+    const currentTable = String(tableNumber);
 
-      // 1. Φέρνουμε τα πιάτα του τραπεζιού
-      const { data: cartData } = await supabase
-        .from('order_items')
-        .select('*')
-        .eq('table_number', currentTable);
-      
-      if (cartData) setDbCart(cartData);
+    const { data: cartData } = await supabase
+      .from('order_items')
+      .select('*')
+      .eq('table_number', currentTable);
+    
+    if (cartData) setDbCart(cartData);
 
-      // 2. Φέρνουμε ΜΟΝΟ την πιο πρόσφατη εγγραφή ρεφενέ για ΑΥΤΟ το τραπέζι
-      const { data: splitData } = await supabase
-        .from('active_splits')
-        .select('*')
-        .eq('table_number', currentTable)
-        .order('created_at', { ascending: false })
-        .limit(1);
+    const { data: splitData } = await supabase
+      .from('active_splits')
+      .select('*')
+      .eq('table_number', currentTable)
+      .order('created_at', { ascending: false })
+      .limit(1);
 
-      if (splitData && splitData.length > 0) {
-        setActiveSplit(splitData[0]);
-        setShowPaymentOptions(true);
-      } else {
-        setActiveSplit(null);
+    if (splitData && splitData.length > 0) {
+      setActiveSplit(splitData[0]);
+      setShowPaymentOptions(true);
+    } else {
+      setActiveSplit(null);
+    }
+  };
+
+  // Καλούμε την αρχική φόρτωση
+  fetchCartAndSplit();
+
+  // 2. Στήνουμε το REALTIME Κανάλι ΜΟΝΟ για αυτό το τραπέζι
+  const channel = supabase.channel(`table_${tableNumber}_updates`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*', // Ακούμε σε INSERT, UPDATE, και DELETE
+        schema: 'public',
+        table: 'active_splits',
+        filter: `table_number=eq.${tableNumber}`
+      },
+      (payload) => {
+        // Όταν κάποιος άλλος πληρώσει και γίνει UPDATE στη βάση:
+        if (payload.eventType === 'UPDATE') {
+          setActiveSplit(payload.new);
+        }
+        // Όταν εξοφληθεί όλος ο λογαριασμός και γίνει DELETE ο ρεφενές:
+        else if (payload.eventType === 'DELETE') {
+          setActiveSplit(null);
+          fetchCartAndSplit(); // Ξανατραβάμε τα πιάτα για να τα δείξει ως πληρωμένα
+        }
+        // Αν κάποιος άλλος στο τραπέζι ξεκινήσει νέο ρεφενέ (INSERT):
+        else if (payload.eventType === 'INSERT') {
+          setActiveSplit(payload.new);
+          setShowPaymentOptions(true);
+        }
       }
-    };
+    )
+    .subscribe();
 
-    fetchCartAndSplit();
-
-    // Αφαιρέσαμε το Realtime channel από εδώ για να σταματήσουν 
-    // τα "race conditions" (συγκρούσεις) όταν η σελίδα κάνει reload.
-  }, [tableNumber]);
+  // 3. CLEANUP: Το πιο σημαντικό βήμα! Σταματάει τις διπλές συνδρομές όταν αλλάζει το state.
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [tableNumber]);
  
   
 
@@ -570,25 +601,28 @@ const sendOrder = async () => {
                         <UnifiedCheckoutForm
                           amount={Number(activeSplit.split_amount).toFixed(2)}
                          onSuccess={async () => {
-                            const currentTable = String(tableNumber);
-                            const currentPaid = Number(activeSplit.paid_parts);
-                            const totalParts = Number(activeSplit.total_parts);
-                            const newPaidParts = currentPaid + 1;
-                            
-                            if (newPaidParts >= totalParts) {
-                              // Πλήρωσε και ο τελευταίος: Εξόφληση και διαγραφή ρεφενέ
-                              const unpaidIds = unpaidDbItems.map(i => i.id);
-                              await supabase.from('order_items').update({ is_paid: true }).in('id', unpaidIds);
-                              await supabase.from('active_splits').delete().eq('id', activeSplit.id);
-                            } else {
-                              // Πλήρωσε ενδιάμεσος: Απλό Update
-                              await supabase.from('active_splits').update({ paid_parts: newPaidParts }).eq('id', activeSplit.id);
-                            }
+                          // 1. Καλούμε την RPC συνάρτηση για να αυξηθεί το paid_parts με απόλυτη ασφάλεια στη βάση
+                          await supabase.rpc('increment_split_parts', { split_id: activeSplit.id });
 
-                            // Cache-Buster: Εξαναγκάζουμε ΟΛΙΚΟ καθαρισμό της μνήμης του browser
-                            const timestamp = new Date().getTime();
-                            window.location.href = `${window.location.pathname}?t=${timestamp}`; 
-                          }}
+                          // 2. Τραβάμε τα ολόφρεσκα δεδομένα του ρεφενέ κατευθείαν από τη βάση
+                          const { data: updatedSplit } = await supabase
+                            .from('active_splits')
+                            .select('*')
+                            .eq('id', activeSplit.id)
+                            .single();
+
+                          // 3. Ελέγχουμε αν με αυτή την πληρωμή εξοφλήθηκε όλο το ποσό
+                          if (updatedSplit && Number(updatedSplit.paid_parts) >= Number(updatedSplit.total_parts)) {
+                            // Πλήρωσε και ο τελευταίος: Εξόφληση πιάτων και διαγραφή ρεφενέ
+                            const unpaidIds = unpaidDbItems.map(i => i.id);
+                            await supabase.from('order_items').update({ is_paid: true }).in('id', unpaidIds);
+                            await supabase.from('active_splits').delete().eq('id', activeSplit.id);
+                          }
+
+                          // 4. Cache-Buster: Εξαναγκάζουμε ΟΛΙΚΟ καθαρισμό της μνήμης του browser
+                          const timestamp = new Date().getTime();
+                          window.location.href = `${window.location.pathname}?t=${timestamp}`; 
+                        }}
                         />
                       </Elements>
                     </div>
