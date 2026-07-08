@@ -182,10 +182,11 @@ function MenuContent() {
   
 useEffect(() => {
     if (!tableNumber) return;
-    const fetchCartAndSplit = async () => {
-      const currentTable = String(tableNumber); // Αυστηρά string
 
-      // Φέρνουμε τα πιάτα του τραπεζιού
+    const fetchCartAndSplit = async () => {
+      const currentTable = String(tableNumber);
+
+      // 1. Φέρνουμε τα πιάτα του τραπεζιού
       const { data: cartData } = await supabase
         .from('order_items')
         .select('*')
@@ -193,7 +194,7 @@ useEffect(() => {
       
       if (cartData) setDbCart(cartData);
 
-      // Φέρνουμε ΜΟΝΟ το τελευταίο split για ΑΥΤΟ το τραπέζι
+      // 2. Φέρνουμε ΜΟΝΟ την πιο πρόσφατη εγγραφή ρεφενέ για ΑΥΤΟ το τραπέζι
       const { data: splitData } = await supabase
         .from('active_splits')
         .select('*')
@@ -208,12 +209,11 @@ useEffect(() => {
         setActiveSplit(null);
       }
     };
-    
 
     fetchCartAndSplit();
-    
-    // Αφαιρούμε το Realtime για να μην έχουμε συγκρούσεις κατά το reload
-    // Αφήνουμε τη σελίδα να διαβάζει τη βάση με το που κάνει reload
+
+    // Αφαιρέσαμε το Realtime channel από εδώ για να σταματήσουν 
+    // τα "race conditions" (συγκρούσεις) όταν η σελίδα κάνει reload.
   }, [tableNumber]);
  
   
@@ -569,33 +569,26 @@ const sendOrder = async () => {
                       <Elements key={clientSecret} stripe={stripePromise} options={{ clientSecret }}>
                         <UnifiedCheckoutForm
                           amount={Number(activeSplit.split_amount).toFixed(2)}
-                          onSuccess={async () => {
-                  const currentTable = String(tableNumber);
-                  
-                  if (paymentMethod === 'equal' && !activeSplit) {
-                    // ΚΑΘΑΡΙΣΜΟΣ: Πριν γράψουμε το νέο split, σβήνουμε ό,τι παλιό για αυτό το τραπέζι!
-                    await supabase.from('active_splits').delete().eq('table_number', currentTable);
-                    
-                    // Εγγραφή του νέου
-                    await supabase.from('active_splits').insert([{
-                      table_number: currentTable,
-                      total_parts: splitCount,
-                      paid_parts: 1,
-                      split_amount: amountToPay
-                    }]);
-                  } else if (activeSplit) {
-                    // Ενημέρωση (Update)
-                    const newPaid = Number(activeSplit.paid_parts) + 1;
-                    if (newPaid >= Number(activeSplit.total_parts)) {
-                      await supabase.from('order_items').update({ is_paid: true }).eq('table_number', currentTable);
-                      await supabase.from('active_splits').delete().eq('id', activeSplit.id);
-                    } else {
-                      await supabase.from('active_splits').update({ paid_parts: newPaid }).eq('id', activeSplit.id);
-                    }
-                  }
+                         onSuccess={async () => {
+                            const currentTable = String(tableNumber);
+                            const currentPaid = Number(activeSplit.paid_parts);
+                            const totalParts = Number(activeSplit.total_parts);
+                            const newPaidParts = currentPaid + 1;
+                            
+                            if (newPaidParts >= totalParts) {
+                              // Πλήρωσε και ο τελευταίος: Εξόφληση και διαγραφή ρεφενέ
+                              const unpaidIds = unpaidDbItems.map(i => i.id);
+                              await supabase.from('order_items').update({ is_paid: true }).in('id', unpaidIds);
+                              await supabase.from('active_splits').delete().eq('id', activeSplit.id);
+                            } else {
+                              // Πλήρωσε ενδιάμεσος: Απλό Update
+                              await supabase.from('active_splits').update({ paid_parts: newPaidParts }).eq('id', activeSplit.id);
+                            }
 
-                  window.location.reload();
-                }}
+                            // Cache-Buster: Εξαναγκάζουμε ΟΛΙΚΟ καθαρισμό της μνήμης του browser
+                            const timestamp = new Date().getTime();
+                            window.location.href = `${window.location.pathname}?t=${timestamp}`; 
+                          }}
                         />
                       </Elements>
                     </div>
