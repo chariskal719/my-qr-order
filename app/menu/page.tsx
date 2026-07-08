@@ -180,72 +180,26 @@ function MenuContent() {
   const displayedItems = selectedCategory === 'Προτεινόμενα' ? menuItems : menuItems.filter(item => item.category === selectedCategory);
   const [activeSplit, setActiveSplit] = useState<any>(null);
   
-useEffect(() => {
-  if (!tableNumber) return;
+  useEffect(() => {
+    if (!tableNumber) return;
 
-  // 1. Η συνάρτηση που τραβάει τα αρχικά δεδομένα
-  const fetchCartAndSplit = async () => {
-    const currentTable = String(tableNumber);
+    const fetchCartAndSplit = async () => {
+      const currentTable = String(tableNumber);
 
-    const { data: cartData } = await supabase
-      .from('order_items')
-      .select('*')
-      .eq('table_number', currentTable);
-    
-    if (cartData) setDbCart(cartData);
+      // 1. Φέρνουμε τα πιάτα του τραπεζιού (ΤΟ ΑΦΗΝΟΥΜΕ ΚΑΝΟΝΙΚΑ)
+      const { data: cartData } = await supabase
+        .from('order_items')
+        .select('*')
+        .eq('table_number', currentTable);
+      
+      if (cartData) setDbCart(cartData);
 
-    const { data: splitData } = await supabase
-      .from('active_splits')
-      .select('*')
-      .eq('table_number', currentTable)
-      .order('created_at', { ascending: false })
-      .limit(1);
+      // 2. ΚΑΤΑΡΓΟΥΜΕ ΤΟ ΚΛΕΙΔΩΜΑ (Δεν ψάχνουμε πλέον για ενεργούς διαχωρισμούς)
+      setActiveSplit(null); 
+    };
 
-    if (splitData && splitData.length > 0) {
-      setActiveSplit(splitData[0]);
-      setShowPaymentOptions(true);
-    } else {
-      setActiveSplit(null);
-    }
-  };
-
-  // Καλούμε την αρχική φόρτωση
-  fetchCartAndSplit();
-
-  // 2. Στήνουμε το REALTIME Κανάλι ΜΟΝΟ για αυτό το τραπέζι
-  const channel = supabase.channel(`table_${tableNumber}_updates`)
-    .on(
-      'postgres_changes',
-      {
-        event: '*', // Ακούμε σε INSERT, UPDATE, και DELETE
-        schema: 'public',
-        table: 'active_splits',
-        filter: `table_number=eq.${tableNumber}`
-      },
-      (payload) => {
-        // Όταν κάποιος άλλος πληρώσει και γίνει UPDATE στη βάση:
-        if (payload.eventType === 'UPDATE') {
-          setActiveSplit(payload.new);
-        }
-        // Όταν εξοφληθεί όλος ο λογαριασμός και γίνει DELETE ο ρεφενές:
-        else if (payload.eventType === 'DELETE') {
-          setActiveSplit(null);
-          fetchCartAndSplit(); // Ξανατραβάμε τα πιάτα για να τα δείξει ως πληρωμένα
-        }
-        // Αν κάποιος άλλος στο τραπέζι ξεκινήσει νέο ρεφενέ (INSERT):
-        else if (payload.eventType === 'INSERT') {
-          setActiveSplit(payload.new);
-          setShowPaymentOptions(true);
-        }
-      }
-    )
-    .subscribe();
-
-  // 3. CLEANUP: Το πιο σημαντικό βήμα! Σταματάει τις διπλές συνδρομές όταν αλλάζει το state.
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, [tableNumber]);
+    fetchCartAndSplit();
+  }, [tableNumber]);
  
   
 
@@ -261,17 +215,17 @@ useEffect(() => {
   const selectableItems = unpaidDbItems.filter(item => item.price > 0 && !item.cash_requested);
 
   let amountToPay = 0;
-if (activeSplit) {
+  if (activeSplit) {
   amountToPay = Number(activeSplit.split_amount);
-} else if (paymentMethod === 'full') {
+  } else if (paymentMethod === 'full') {
   amountToPay = totalUnpaid;
-} else if (paymentMethod === 'own') {
+  } else if (paymentMethod === 'own') {
   amountToPay = unpaidDbItems.filter(i => selectedItemIds.includes(i.id)).reduce((s, i) => s + Number(i.price), 0);
-} else if (paymentMethod === 'equal') {
+  } else if (paymentMethod === 'equal') {
   amountToPay = totalUnpaid / splitCount;
-}
+  }
 
-const handleStripeSetup = async () => {
+ const handleStripeSetup = async () => {
     if (amountToPay <= 0) return;
     setStripeMode(true);
     
@@ -336,7 +290,7 @@ const handleStripeSetup = async () => {
     });
   };
 
-const sendOrder = async () => {
+  const sendOrder = async () => {
     const itemsToInsert: any[] = [];
     Object.entries(cart).forEach(([id, qty]) => {
       const item = menuItems.find(m => m.id === Number(id));
@@ -694,32 +648,48 @@ const sendOrder = async () => {
                                 amount={amountToPay.toFixed(2)}
                                 onSuccess={async () => {
                                   
-                                  if (paymentMethod === 'own') {
-                                    // Πληρώνει τα δικά του
-                                    await supabase.from('order_items').update({ is_paid: true }).in('id', selectedItemIds);
-                                  } else if (paymentMethod === 'full') {
-                                    // Πληρώνει τα πάντα
-                                    const unpaidIds = unpaidDbItems.map(i => i.id);
-                                    await supabase.from('order_items').update({ is_paid: true }).in('id', unpaidIds);
-                                  } else if (paymentMethod === 'equal') {
-                                    // ΕΔΩ ΚΛΕΙΔΩΝΕΙ Ο ΡΕΦΕΝΕΣ: Γράφει στη βάση και ΔΕΝ διαγράφει τα πιάτα
-                                    const { error } = await supabase.from('active_splits').insert([{
-                                      table_number: tableNumber,
-                                      total_parts: splitCount,
-                                      paid_parts: 1,
-                                      split_amount: amountToPay
-                                    }]);
+                                      if (paymentMethod === 'own') {
+                                        // Πληρώνει τα δικά του
+                                        await supabase.from('order_items').update({ is_paid: true }).in('id', selectedItemIds);
+                                      } else if (paymentMethod === 'full') {
+                                        // Πληρώνει τα πάντα
+                                        const unpaidIds = unpaidDbItems.map(i => i.id);
+                                        await supabase.from('order_items').update({ is_paid: true }).in('id', unpaidIds);
+                                      } else if (paymentMethod === 'equal') {
+                                      // ΝΕΑ ΛΟΓΙΚΗ: Αντί για "κλείδωμα", βάζουμε μια γραμμή με αρνητικό ποσό στα πιάτα!
+                                      await supabase.from('order_items').insert([{
+                                        table_number: tableNumber,
+                                        name: `✅ Έναντι Λογαριασμού (Κάρτα)`,
+                                        price: -Math.abs(amountToPay),
+                                        status: 'served',
+                                        is_paid: false,
+                                        cash_requested: false
+                                      }]);
 
-                                    if (error) {
-                                      alert("Σφάλμα κλειδώματος: " + error.message);
-                                      return;
+                                      // ΕΛΕΓΧΟΣ: Μήπως με αυτή την πληρωμή μηδενίστηκε το τραπέζι;
+                                      const { data: checkItems } = await supabase
+                                        .from('order_items')
+                                        .select('*')
+                                        .eq('table_number', String(tableNumber))
+                                        .eq('is_paid', false);
+
+                                      if (checkItems) {
+                                        // Υπολογίζουμε το νέο σύνολο (πιάτα μείον τις πληρωμές)
+                                        const newTotal = checkItems.reduce((sum, item) => sum + Number(item.price), 0);
+                                        
+                                        // Αν το υπόλοιπο είναι 0 (βάζουμε 0.05 ανοχή για τα δεκαδικά), εξοφλούμε τα πάντα!
+                                        if (newTotal <= 0.05) { 
+                                          const allUnpaidIds = checkItems.map(i => i.id);
+                                          await supabase.from('order_items').update({ is_paid: true }).in('id', allUnpaidIds);
+                                        }
+                                      }
                                     }
-                                  }
 
-                                  alert("✅ Η πρώτη πληρωμή ολοκληρώθηκε επιτυχώς!");
-                                  window.location.reload(); // Reload για να εμφανιστεί αμέσως το κλειδωμένο UI
-                                }}
-                              />
+                                      alert("✅ Η πληρωμή ολοκληρώθηκε επιτυχώς!");
+                                      window.location.reload();
+
+                                      }}
+                                    />
                             </Elements>
                           </div>
                         ) : (
