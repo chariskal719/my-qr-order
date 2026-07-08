@@ -211,19 +211,26 @@ function MenuContent() {
   const unpaidDbItems = dbCart.filter(item => !item.is_paid);
   const totalUnpaid = unpaidDbItems.reduce((sum, item) => sum + Number(item.price), 0);
   
-  // Τα πιάτα που μπορούν να επιλεγούν (αγνοούμε τις "αρνητικές" πληρωμές split)
+  // ΝΕΟ: Υπολογίζουμε ΜΟΝΟ την αξία του φαγητού (αγνοώντας τις αρνητικές πληρωμές)
+  const unpaidFoodTotal = unpaidDbItems
+    .filter(item => item.price > 0)
+    .reduce((sum, item) => sum + Number(item.price), 0);
+  
   const selectableItems = unpaidDbItems.filter(item => item.price > 0 && !item.cash_requested);
+ 
 
   let amountToPay = 0;
-  if (activeSplit) {
-  amountToPay = Number(activeSplit.split_amount);
-  } else if (paymentMethod === 'full') {
-  amountToPay = totalUnpaid;
+  if (paymentMethod === 'full') {
+    amountToPay = totalUnpaid;
   } else if (paymentMethod === 'own') {
-  amountToPay = unpaidDbItems.filter(i => selectedItemIds.includes(i.id)).reduce((s, i) => s + Number(i.price), 0);
+    amountToPay = unpaidDbItems.filter(i => selectedItemIds.includes(i.id)).reduce((s, i) => s + Number(i.price), 0);
   } else if (paymentMethod === 'equal') {
-  amountToPay = totalUnpaid / splitCount;
+    // ΝΕΑ ΜΑΘΗΜΑΤΙΚΑ: Διαιρούμε την αξία του ΦΑΓΗΤΟΥ (π.χ. 20€ / 4), όχι το υπόλοιπο!
+    const share = unpaidFoodTotal / splitCount;
+    // Εξασφαλίζουμε ότι το τελευταίο άτομο δεν θα πληρώσει ποτέ παραπάνω από το τελικό υπόλοιπο
+    amountToPay = Math.min(share, totalUnpaid); 
   }
+
 
  const handleStripeSetup = async () => {
     if (amountToPay <= 0) return;
@@ -416,28 +423,57 @@ function MenuContent() {
           </div>
         ))}
 
+       {/* ΠΑΡΑΓΓΕΛΙΑ ΤΡΑΠΕΖΙΟΥ - PREMIUM UI */}
         {dbCart.length > 0 && (
-          <div className="mt-10 bg-white p-6 rounded-[32px] border border-[#EADDCA]">
+          <div className="mt-10 bg-white p-6 rounded-[32px] border border-[#EADDCA] shadow-sm">
             <h2 className="text-xs font-black uppercase tracking-widest mb-4 opacity-40">Παραγγελία Τραπεζιού</h2>
-            {dbCart.map((item, idx) => (
-              <div key={idx} className={`flex justify-between py-2 border-b border-gray-50 last:border-0 ${item.price < 0 ? 'text-green-600 font-bold' : ''}`}>
-                <span className={item.is_paid ? 'line-through opacity-30' : ''}>{item.name}</span>
-                <span className="font-bold">{Number(item.price).toFixed(2)}€</span>
-              </div>
-            ))}
-            {totalUnpaid > 0 && (
-              <div className="mt-6">
-                <div className="flex justify-between items-center mb-4 px-2">
-                  <span className="font-bold text-lg">{t.total}</span>
-                  <span className="font-black text-2xl text-[#800020]">{totalUnpaid.toFixed(2)}€</span>
+            
+            {/* 1. ΛΙΣΤΑ ΜΕ ΤΑ ΠΙΑΤΑ (Μόνο τα θετικά ποσά) */}
+            <div className="space-y-2">
+              {dbCart.filter(item => item.price > 0).map((item, idx) => (
+                <div key={idx} className="flex justify-between py-1">
+                  <span className={`text-gray-700 ${item.is_paid ? 'line-through opacity-40' : ''}`}>{item.name}</span>
+                  <span className="font-medium text-gray-900">{Number(item.price).toFixed(2)}€</span>
                 </div>
-                <button onClick={() => setShowPaymentOptions(true)} className="w-full bg-[#800020] text-white py-4 rounded-2xl font-bold shadow-lg active:scale-95 transition-transform">
-                  {t.paymentSelection}
+              ))}
+            </div>
+
+            {/* Υπολογισμός Αξίας Φαγητού */}
+            <div className="flex justify-between items-center mt-4 pt-4 border-t border-dashed border-gray-200">
+               <span className="text-sm font-medium text-gray-500">Συνολική Αξία</span>
+               <span className="text-sm font-bold text-gray-500">
+                 {dbCart.filter(item => item.price > 0).reduce((s, i) => s + Number(i.price), 0).toFixed(2)}€
+               </span>
+            </div>
+
+            {/* 2. ΛΙΣΤΑ ΜΕ ΤΙΣ ΠΛΗΡΩΜΕΣ (Μόνο τα αρνητικά ποσά) */}
+            {dbCart.some(item => item.price < 0) && (
+              <div className="mt-4 bg-green-50 p-4 rounded-2xl border border-green-100">
+                <h3 className="text-[10px] font-bold uppercase tracking-wider text-green-800 opacity-60 mb-2">Ολοκληρωμενες Πληρωμες</h3>
+                {dbCart.filter(item => item.price < 0).map((item, idx) => (
+                  <div key={idx} className="flex justify-between py-1 text-sm">
+                    <span className="text-green-700 font-medium">💳 Πληρωμή (Μερίδιο)</span>
+                    <span className="font-bold text-green-700">{Math.abs(Number(item.price)).toFixed(2)}€</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 3. ΤΕΛΙΚΟ ΥΠΟΛΟΙΠΟ & ΚΟΥΜΠΙ */}
+            {totalUnpaid > 0.05 && (
+              <div className="mt-6">
+                <div className="flex justify-between items-end mb-5 px-1">
+                  <span className="font-bold text-lg text-gray-900">Τελικό Υπόλοιπο</span>
+                  <span className="font-black text-3xl text-[#800020] leading-none">{totalUnpaid.toFixed(2)}€</span>
+                </div>
+                <button onClick={() => setShowPaymentOptions(true)} className="w-full bg-[#800020] text-white py-4 rounded-2xl font-bold shadow-[0_8px_20px_rgba(128,0,32,0.2)] active:scale-95 transition-all flex items-center justify-center gap-2">
+                  <span>{t.paymentSelection}</span>
+                  <span className="text-xl">→</span>
                 </button>
               </div>
             )}
           </div>
-        )}
+        )} 
       </main>
 
       {/* --- PROFESSIONAL FOOTER --- */}
