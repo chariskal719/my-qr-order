@@ -656,37 +656,45 @@ function MenuContent() {
                                         const unpaidIds = unpaidDbItems.map(i => i.id);
                                         await supabase.from('order_items').update({ is_paid: true }).in('id', unpaidIds);
                                       } else if (paymentMethod === 'equal') {
-                                      // ΝΕΑ ΛΟΓΙΚΗ: Αντί για "κλείδωμα", βάζουμε μια γραμμή με αρνητικό ποσό στα πιάτα!
-                                      await supabase.from('order_items').insert([{
-                                        table_number: tableNumber,
-                                        name: `✅ Έναντι Λογαριασμού (Κάρτα)`,
-                                        price: -Math.abs(amountToPay),
-                                        status: 'served',
-                                        is_paid: false,
-                                        cash_requested: false
-                                      }]);
+                                          // 1. Κάνουμε την εγγραφή και βάζουμε το "insertError" για να πιάσουμε το σφάλμα!
+                                          const { error: insertError } = await supabase.from('order_items').insert([{
+                                            table_number: tableNumber,
+                                            item_id: 0, // Βάζουμε ένα dummy ID σε περίπτωση που η βάση το απαιτεί
+                                            name: `✅ Έναντι Λογαριασμού (Κάρτα)`,
+                                            price: -Math.abs(amountToPay),
+                                            status: 'served',
+                                            is_paid: false,
+                                            cash_requested: false
+                                          }]);
 
-                                      // ΕΛΕΓΧΟΣ: Μήπως με αυτή την πληρωμή μηδενίστηκε το τραπέζι;
-                                      const { data: checkItems } = await supabase
-                                        .from('order_items')
-                                        .select('*')
-                                        .eq('table_number', String(tableNumber))
-                                        .eq('is_paid', false);
+                                          // Αν η βάση αρνηθεί την εγγραφή, θα μας πετάξει το λάθος στα μούτρα!
+                                          if (insertError) {
+                                            alert("Σφάλμα από τη βάση δεδομένων: " + insertError.message);
+                                            return; // Σταματάμε τη διαδικασία, δεν πάμε στο "Επιτυχώς"
+                                          }
 
-                                      if (checkItems) {
-                                        // Υπολογίζουμε το νέο σύνολο (πιάτα μείον τις πληρωμές)
-                                        const newTotal = checkItems.reduce((sum, item) => sum + Number(item.price), 0);
-                                        
-                                        // Αν το υπόλοιπο είναι 0 (βάζουμε 0.05 ανοχή για τα δεκαδικά), εξοφλούμε τα πάντα!
-                                        if (newTotal <= 0.05) { 
-                                          const allUnpaidIds = checkItems.map(i => i.id);
-                                          await supabase.from('order_items').update({ is_paid: true }).in('id', allUnpaidIds);
+                                          // ΕΛΕΓΧΟΣ: Μήπως εξοφλήθηκε πλήρως το τραπέζι;
+                                          const { data: checkItems } = await supabase
+                                            .from('order_items')
+                                            .select('*')
+                                            .eq('table_number', String(tableNumber))
+                                            .eq('is_paid', false);
+
+                                          if (checkItems) {
+                                            const newTotal = checkItems.reduce((sum, item) => sum + Number(item.price), 0);
+                                            if (newTotal <= 0.05) { 
+                                              const allUnpaidIds = checkItems.map(i => i.id);
+                                              await supabase.from('order_items').update({ is_paid: true }).in('id', allUnpaidIds);
+                                            }
+                                          }
                                         }
-                                      }
-                                    }
 
-                                      alert("✅ Η πληρωμή ολοκληρώθηκε επιτυχώς!");
-                                      window.location.reload();
+                                        // Αν έφτασε μέχρι εδώ, σημαίνει ότι η βάση το αποθήκευσε πραγματικά!
+                                        alert("✅ Η πληρωμή αποθηκεύτηκε επιτυχώς!");
+
+                                        // Σωστό Reload: Κρατάει το τραπέζι και βάζει timestamp για να σπάσει την cache
+                                        const timestamp = new Date().getTime();
+                                        window.location.href = `${window.location.pathname}?table=${tableNumber}&t=${timestamp}`;
 
                                       }}
                                     />
