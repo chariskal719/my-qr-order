@@ -15,36 +15,34 @@ export async function POST(req: Request) {
   try {
     const { type, tableNumber, itemIds, splitCount } = await req.json();
     let finalAmount = 0;
-    let webhookType = type; // Θα το περάσουμε στο Stripe για να ξέρει το Webhook τι να κάνει
+    let webhookType = type; 
 
-    // 1. Ελέγχουμε αν υπάρχει ΗΔΗ ενεργό split για αυτό το τραπέζι στη βάση
-    const { data: activeSplit } = await supabase
-      .from('active_splits')
-      .select('*')
-      .eq('table_number', tableNumber)
-      .maybeSingle();
+    // ΚΑΤΑΡΓΗΣΑΜΕ ΤΟ active_splits! Δεν ψάχνουμε πλέον για κλειδωμένα τραπέζια.
 
-    if (activeSplit) {
-      // Αν το τραπέζι είναι κλειδωμένο σε split, το ποσό είναι αυστηρά το μερίδιο!
-      finalAmount = Number(activeSplit.split_amount);
-      webhookType = 'pay_existing_split'; // Λέμε στο Webhook ότι κάποιος πληρώνει το μερίδιό του
-    } else {
-      // 2. Αν δεν υπάρχει split, υπολογίζουμε το ποσό ανάλογα με το τι διάλεξε
-      if (type === 'own' && itemIds && itemIds.length > 0) {
-        const { data, error } = await supabase.from('order_items').select('price').in('id', itemIds).eq('is_paid', false);
-        if (error) throw error;
-        finalAmount = data?.reduce((sum, item) => sum + Number(item.price), 0) || 0;
-      } else if (type === 'full' || type === 'equal') {
-        const { data, error } = await supabase.from('order_items').select('price').eq('table_number', tableNumber).eq('is_paid', false);
-        if (error) throw error;
-        const totalRemaining = data?.reduce((sum, item) => sum + Number(item.price), 0) || 0;
+    if (type === 'own' && itemIds && itemIds.length > 0) {
+      const { data, error } = await supabase.from('order_items').select('price').in('id', itemIds).eq('is_paid', false);
+      if (error) throw error;
+      finalAmount = data?.reduce((sum, item) => sum + Number(item.price), 0) || 0;
+      
+    } else if (type === 'full' || type === 'equal') {
+      // Παίρνουμε ΟΛΑ τα απλήρωτα είδη (θετικά πιάτα ΚΑΙ αρνητικές πληρωμές)
+      const { data, error } = await supabase.from('order_items').select('price').eq('table_number', tableNumber).eq('is_paid', false);
+      if (error) throw error;
 
-        if (type === 'full') {
-          finalAmount = totalRemaining;
-        } else if (type === 'equal') {
-          finalAmount = totalRemaining / splitCount;
-          webhookType = 'create_new_split'; // Λέμε στο Webhook "Ο πρώτος πλήρωσε, φτιάξε το κλείδωμα!"
-        }
+      // 1. Το Τελικό Υπόλοιπο (Φαγητό ΜΕΙΟΝ Πληρωμές)
+      const totalRemaining = data?.reduce((sum, item) => sum + Number(item.price), 0) || 0;
+      
+      // 2. Η Αξία του Φαγητού ΜΟΝΟ (Αγνοούμε τα αρνητικά)
+      const unpaidFoodTotal = data?.filter(item => Number(item.price) > 0).reduce((sum, item) => sum + Number(item.price), 0) || 0;
+
+      if (type === 'full') {
+        finalAmount = totalRemaining;
+      } else if (type === 'equal') {
+        // ΝΕΑ ΜΑΘΗΜΑΤΙΚΑ: Υπολογίζουμε το μερίδιο με βάση το ΦΑΓΗΤΟ!
+        const share = unpaidFoodTotal / splitCount;
+        // Ποτέ δεν χρεώνουμε παραπάνω από το τελικό υπόλοιπο
+        finalAmount = Math.min(share, totalRemaining);
+        webhookType = 'equal'; // Το Webhook θα το αγνοήσει, γιατί τη δουλειά την κάνει πλέον το νέο μας Frontend!
       }
     }
 
