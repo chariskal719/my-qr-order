@@ -619,9 +619,8 @@ const sendOrder = async () => {
                             await supabase.from('active_splits').delete().eq('id', activeSplit.id);
                           }
 
-                          // 4. Cache-Buster: Εξαναγκάζουμε ΟΛΙΚΟ καθαρισμό της μνήμης του browser
-                          const timestamp = new Date().getTime();
-                          window.location.href = `${window.location.pathname}?t=${timestamp}`; 
+                          window.location.reload();
+                          
                         }}
                         />
                       </Elements>
