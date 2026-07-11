@@ -25,7 +25,6 @@ export default function AdminPage() {
   }, []);
 
   const nextStatus = async (id: number, currentStatus: string, price: number) => {
-    // Αν είναι αρνητικό ποσό (πληρωμή), δεν αλλάζουμε status κουζίνας!
     if (Number(price) < 0) return;
 
     let newStatus = 'pending';
@@ -40,14 +39,16 @@ export default function AdminPage() {
     await supabase.from('order_items').update({ is_paid: true, cash_requested: false }).in('id', ids);
   };
 
-  // ΝΕΑ ΛΟΓΙΚΗ: Δεν σβήνουμε, αλλά εξοφλούμε/αρχειοθετούμε το τραπέζι για ασφάλεια
+  // ΝΕΑ ΛΟΓΙΚΗ: Το κουμπί πλέον βάζει status = 'archived' για να το κρύψει από την οθόνη
   const clearTable = async (table: string) => {
-    if (confirm(`Θέλετε να αρχειοθετήσετε και να κλείσετε το τραπέζι ${table};`)) {
-      await supabase.from('order_items').update({ is_paid: true }).eq('table_number', table).eq('is_paid', false);
+    if (confirm(`Θέλετε να κλείσετε οριστικά και να αρχειοθετήσετε το τραπέζι ${table};`)) {
+      await supabase.from('order_items').update({ status: 'archived' }).eq('table_number', table);
     }
   };
 
-  const tableNumbers = Array.from(new Set(orders.map(o => o.table_number))).sort((a, b) => Number(a) - Number(b));
+  // Φιλτράρουμε τις αρχειοθετημένες παραγγελίες για να μην φαίνονται στο UI
+  const visibleOrders = orders.filter(o => o.status !== 'archived');
+  const tableNumbers = Array.from(new Set(visibleOrders.map(o => o.table_number))).sort((a, b) => Number(a) - Number(b));
 
   return (
     <div className="min-h-screen bg-[#0F172A] text-white p-6 font-sans">
@@ -60,19 +61,28 @@ export default function AdminPage() {
 
       <main className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {tableNumbers.map(table => {
-          // Φιλτράρουμε ώστε να εμφανίζονται στο τραπέζι ΜΟΝΟ τα απλήρωτα είδη
-          const tableOrders = orders.filter(o => o.table_number === table && !o.is_paid);
+          // Πλέον παίρνουμε ΟΛΑ τα μη-αρχειοθετημένα είδη του τραπεζιού (ακόμα και τα πληρωμένα)
+          const tableOrders = visibleOrders.filter(o => o.table_number === table);
           const cashTotal = tableOrders.filter(o => o.cash_requested).reduce((s, i) => s + Number(i.price), 0);
           
-          // Αν το τραπέζι δεν έχει πλέον απλήρωτα είδη, δεν το δείχνουμε καθόλου
-          if (tableOrders.length === 0) return null;
+          // Ελέγχουμε αν έχουν πληρωθεί τα πάντα στο τραπέζι (για να αλλάξουμε το χρώμα του)
+          const isTableFullyPaid = tableOrders.every(o => o.is_paid || Number(o.price) < 0);
 
           return (
-            <div key={table} className={`rounded-2xl border-2 flex flex-col bg-slate-800 ${cashTotal > 0 ? 'border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.3)]' : 'border-slate-700'}`}>
+            <div key={table} className={`rounded-2xl border-2 flex flex-col ${
+              cashTotal > 0 ? 'bg-slate-800 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.3)]' : 
+              isTableFullyPaid ? 'bg-emerald-950/20 border-emerald-800' : 'bg-slate-800 border-slate-700'
+            }`}>
               
-              <div className={`p-4 flex justify-between items-center ${cashTotal > 0 ? 'bg-red-500/20' : 'bg-slate-700/50'}`}>
-                <h2 className="text-2xl font-black">Τραπέζι {table}</h2>
+              <div className={`p-4 flex justify-between items-center ${
+                cashTotal > 0 ? 'bg-red-500/20' : 
+                isTableFullyPaid ? 'bg-emerald-900/30' : 'bg-slate-700/50'
+              }`}>
+                <h2 className={`text-2xl font-black ${isTableFullyPaid ? 'text-emerald-500' : ''}`}>
+                  Τραπέζι {table}
+                </h2>
                 {cashTotal > 0 && <span className="bg-red-600 text-white text-xs font-black px-3 py-1 rounded-full animate-pulse">ΠΛΗΡΩΜΗ!</span>}
+                {isTableFullyPaid && cashTotal === 0 && <span className="text-emerald-500 text-xs font-black px-3 py-1 border border-emerald-500 rounded-full">ΕΞΟΦΛΗΜΕΝΟ</span>}
               </div>
 
               <div className="p-4 flex-1 space-y-3">
@@ -87,20 +97,20 @@ export default function AdminPage() {
                         isPaymentItem ? 'bg-emerald-950/40 border-emerald-500/50 cursor-default' :
                         item.status === 'served' ? 'bg-slate-800 border-slate-700 opacity-50 cursor-pointer' : 
                         item.status === 'ready' ? 'bg-green-900/40 border-green-500 cursor-pointer' : 
+                        item.is_paid ? 'bg-slate-800/80 border-emerald-900/50 cursor-pointer' :
                         'bg-slate-700 border-slate-600 cursor-pointer'
                       } ${item.cash_requested ? 'ring-2 ring-red-500' : ''}`}
                     >
                       <div className="flex justify-between items-start">
-                        <p className={`font-bold text-lg ${item.status === 'served' ? 'line-through text-slate-400' : 'text-white'}`}>
+                        <p className={`font-bold text-lg ${item.status === 'served' || item.is_paid ? 'text-slate-400' : 'text-white'}`}>
                           {isPaymentItem ? `💳 Πληρωμή (Μερίδιο)` : item.name}
                         </p>
-                        <span className={`text-lg font-bold ${isPaymentItem ? 'text-emerald-400' : 'text-white'}`}>
+                        <span className={`text-lg font-bold ${isPaymentItem ? 'text-emerald-400' : item.is_paid ? 'text-slate-500 line-through' : 'text-white'}`}>
                           {Number(item.price).toFixed(2)}€
                         </span>
                       </div>
                       
                       <div className="flex gap-2 mt-2 flex-wrap">
-                        {/* ΣΤΑΔΙΟ ΚΟΥΖΙΝΑΣ - Μόνο για κανονικά φαγητά */}
                         {!isPaymentItem && (
                           <span className={`text-[10px] px-2 py-1 rounded-md font-black uppercase tracking-wider ${
                             item.status === 'pending' ? 'bg-orange-500/20 text-orange-400' : 
@@ -111,14 +121,13 @@ export default function AdminPage() {
                           </span>
                         )}
                         
-                        {/* ΚΑΤΑΣΤΑΣΗ ΠΛΗΡΩΜΗΣ */}
                         <span className={`text-[10px] px-2 py-1 rounded-md font-black uppercase tracking-wider ${
                           isPaymentItem ? 'bg-emerald-500/20 text-emerald-400' :
-                          item.is_paid ? 'bg-green-500/20 text-green-400' : 
+                          item.is_paid ? 'bg-emerald-500/10 text-emerald-500' : 
                           item.cash_requested ? 'bg-red-500 text-white animate-pulse' : 
                           'bg-slate-700 text-slate-400'
                         }`}>
-                          {isPaymentItem ? 'ONLINE ΕΞΟΦΛΗΣΗ' : item.is_paid ? '💳 ΠΛΗΡΩΘΗΚΕ' : item.cash_requested ? '💸 ΘΕΛΕΙ ΜΕΤΡΗΤΑ' : '⏳ ΑΠΛΗΡΩΤΟ'}
+                          {isPaymentItem ? 'ONLINE ΕΞΟΦΛΗΣΗ' : item.is_paid ? '✅ ΠΛΗΡΩΘΗΚΕ' : item.cash_requested ? '💸 ΘΕΛΕΙ ΜΕΤΡΗΤΑ' : '⏳ ΑΠΛΗΡΩΤΟ'}
                         </span>
                       </div>
                     </div>
@@ -132,7 +141,14 @@ export default function AdminPage() {
                     ΕΙΣΠΡΑΞΗ {cashTotal.toFixed(2)}€
                   </button>
                 )}
-                <button onClick={() => clearTable(table)} className="w-full bg-slate-800 text-slate-400 font-bold py-3 rounded-xl border border-slate-700 active:scale-95 transition-transform">
+                <button 
+                  onClick={() => clearTable(table)} 
+                  className={`w-full font-bold py-3 rounded-xl border active:scale-95 transition-transform ${
+                    isTableFullyPaid 
+                    ? 'bg-emerald-600/20 text-emerald-500 border-emerald-600/30 hover:bg-emerald-600/30' 
+                    : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
+                  }`}
+                >
                   Κλείσιμο Τραπεζιού
                 </button>
               </div>
