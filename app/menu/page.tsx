@@ -183,22 +183,43 @@ function MenuContent() {
   useEffect(() => {
     if (!tableNumber) return;
 
+    // 1. Αρχικό τράβηγμα των δεδομένων
     const fetchCartAndSplit = async () => {
       const currentTable = String(tableNumber);
-
-      // 1. Φέρνουμε τα πιάτα του τραπεζιού (ΤΟ ΑΦΗΝΟΥΜΕ ΚΑΝΟΝΙΚΑ)
-      const { data: cartData } = await supabase
+      
+      const { data, error } = await supabase
         .from('order_items')
         .select('*')
         .eq('table_number', currentTable);
-      
-      if (cartData) setDbCart(cartData);
 
-      // 2. ΚΑΤΑΡΓΟΥΜΕ ΤΟ ΚΛΕΙΔΩΜΑ (Δεν ψάχνουμε πλέον για ενεργούς διαχωρισμούς)
-      setActiveSplit(null); 
+      if (error) {
+        console.error("Σφάλμα Realtime Cart:", error);
+      } else if (data) {
+        setDbCart(data);
+      }
+      
+      // ΚΑΤΑΡΓΟΥΜΕ ΤΟ ΚΛΕΙΔΩΜΑ (Δεν ψάχνουμε πλέον για ενεργούς διαχωρισμούς)
+      setActiveSplit(null);
     };
 
     fetchCartAndSplit();
+
+    // 2. Ζωντανός συγχρονισμός: Αν αλλάξει οτιδήποτε στο τραπέζι, ξανατραβάμε τα δεδομένα!
+    const channel = supabase
+      .channel(`table_${tableNumber}_sync`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'order_items', filter: `table_number=eq.${tableNumber}` },
+        () => {
+          // Μόλις γίνει οποιαδήποτε αλλαγή (πληρωμή, νέα παραγγελία κτλ), τρέχουμε πάλι το fetch
+          fetchCartAndSplit();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [tableNumber]);
  
   
