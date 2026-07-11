@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '../utils/supabase'; // Προσοχή να είναι σωστό το path σου
+import { supabase } from '../../utils/supabase'; // Προσοχή να είναι σωστό το path σου
 
 export default function KitchenDashboard() {
   const [pendingOrders, setPendingOrders] = useState<any[]>([]);

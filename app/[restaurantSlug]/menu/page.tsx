@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { supabase } from '../utils/supabase';
+import { useSearchParams, useParams } from 'next/navigation';
+import { supabase } from '../../utils/supabase'; // <-- Προσαρμόστηκε η διαδρομή
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, ExpressCheckoutElement, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
@@ -73,21 +73,13 @@ export const dynamic = 'force-dynamic';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY as string);
 
-const menuItems = [
-  { id: 1, name: 'Χωριάτικη Σαλάτα', price: 8.50, description: 'Ντομάτα, αγγούρι, φέτα, ελιές, λάδι', category: 'Σαλάτες' },
-  { id: 2, name: 'Burger Μοσχαρίσιο', price: 12.00, description: 'Με τσένταρ, μπέικον και πατάτες', category: 'Κυρίως' },
-  { id: 3, name: 'Μπύρα Lager 500ml', price: 4.50, description: 'Παγωμένη βαρελίσια', category: 'Ποτά' },
-  { id: 4, name: 'Πράσινη Σαλάτα', price: 7.00, description: 'Μαρούλι, ρόκα, παρμεζάνα', category: 'Σαλάτες' },
-  { id: 5, name: 'Pasta Carbonara', price: 11.00, description: 'Αυθεντική συνταγή με guanciale', category: 'Κυρίως' },
-];
-
+const [menuItems, setMenuItems] = useState<any[]>([]);
 
 function UnifiedCheckoutForm({ onSuccess, amount }: { onSuccess: () => void, amount: string }) {
   const stripe = useStripe();
   const elements = useElements();
   const [isLoading, setIsLoading] = useState(false);
 
-  // Η κύρια λογική πληρωμής που είναι κοινή
   const processPayment = async () => {
     if (!stripe || !elements) return;
     setIsLoading(true);
@@ -108,27 +100,22 @@ function UnifiedCheckoutForm({ onSuccess, amount }: { onSuccess: () => void, amo
     }
   };
 
-  // Όταν πατάει το Apple/Google Pay
   const handleExpressConfirm = () => {
     processPayment();
   };
 
-  // Όταν πατάει Πληρωμή στην απλή κάρτα
   const handleFormSubmit = (e: React.FormEvent) => {
-    e.preventDefault(); // Σταματάει το refresh της σελίδας
+    e.preventDefault(); 
     processPayment();
   };
-
-  
 
   return (
     <div className="flex flex-col gap-6">
       {/* 1. Γρήγορη Πληρωμή (Apple/Google Pay) */}
-      <div className="bg-white rounded-2xl overflow-hidden p-1 border-2 border-[#800020]">
+      <div className="bg-white rounded-2xl overflow-hidden p-1 border-2 border-[var(--brand)]">
         <ExpressCheckoutElement onConfirm={handleExpressConfirm} />
       </div>
 
-      {/* Διαχωριστικό "ή" */}
       <div className="relative flex py-2 items-center">
         <div className="flex-grow border-t border-gray-300"></div>
         <span className="flex-shrink mx-4 text-gray-400 text-sm font-medium">or pay with card</span>
@@ -143,7 +130,7 @@ function UnifiedCheckoutForm({ onSuccess, amount }: { onSuccess: () => void, amo
         
         <button 
           disabled={isLoading || !stripe || !elements} 
-          className="w-full bg-[#800020] text-white py-4 rounded-2xl font-bold shadow-lg disabled:opacity-50 active:scale-95 transition-transform"
+          className="w-full bg-[var(--brand)] text-white py-4 rounded-2xl font-bold shadow-lg disabled:opacity-50 active:scale-95 transition-transform"
         >
           {isLoading ? "Processing..." : `Pay ${amount}€`}
         </button>
@@ -157,9 +144,41 @@ function MenuContent() {
   const [lang, setLang] = useState<'gr' | 'en'>('gr');
   const t = translations[lang];
 
-
   const searchParams = useSearchParams();
   const tableNumber = searchParams.get('table') || '0';
+
+  // --- ΝΕΟ: Ανάγνωση URL και Δυναμικό Branding ---
+  const params = useParams();
+  const restaurantSlug = params?.restaurantSlug as string;
+  const [restaurant, setRestaurant] = useState<{name: string, primary_color: string} | null>(null);
+
+  useEffect(() => {
+    if (!restaurantSlug) return;
+    
+    const fetchBrandAndMenu = async () => {
+      // 1. Τραβάμε τα στοιχεία του μαγαζιού
+      const { data: restData } = await supabase
+        .from('restaurants')
+        .select('id, name, primary_color')
+        .eq('slug', restaurantSlug)
+        .single();
+        
+      if (restData) {
+        setRestaurant(restData);
+        
+        // 2. Τραβάμε τα πιάτα που ανήκουν ΜΟΝΟ σε αυτό το μαγαζί!
+        const { data: menuData } = await supabase
+          .from('menu_items')
+          .select('*')
+          .eq('restaurant_id', restData.id);
+          
+        if (menuData) setMenuItems(menuData);
+      }
+    };
+    
+    fetchBrandAndMenu();
+  }, [restaurantSlug]);
+  // -----------------------------------------------
 
   const [selectedCategory, setSelectedCategory] = useState('Προτεινόμενα');
   const [cart, setCart] = useState<{ [key: number]: number }>({});
@@ -183,7 +202,6 @@ function MenuContent() {
   useEffect(() => {
     if (!tableNumber) return;
 
-    // 1. Αρχικό τράβηγμα των δεδομένων
     const fetchCartAndSplit = async () => {
       const currentTable = String(tableNumber);
       
@@ -198,20 +216,17 @@ function MenuContent() {
         setDbCart(data);
       }
       
-      // ΚΑΤΑΡΓΟΥΜΕ ΤΟ ΚΛΕΙΔΩΜΑ (Δεν ψάχνουμε πλέον για ενεργούς διαχωρισμούς)
       setActiveSplit(null);
     };
 
     fetchCartAndSplit();
 
-    // 2. Ζωντανός συγχρονισμός: Αν αλλάξει οτιδήποτε στο τραπέζι, ξανατραβάμε τα δεδομένα!
     const channel = supabase
       .channel(`table_${tableNumber}_sync`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'order_items', filter: `table_number=eq.${tableNumber}` },
         () => {
-          // Μόλις γίνει οποιαδήποτε αλλαγή (πληρωμή, νέα παραγγελία κτλ), τρέχουμε πάλι το fetch
           fetchCartAndSplit();
         }
       )
@@ -222,8 +237,6 @@ function MenuContent() {
     };
   }, [tableNumber]);
  
-  
-
   useEffect(() => {
     setStripeMode(false);
     setClientSecret(null);
@@ -232,32 +245,26 @@ function MenuContent() {
   const unpaidDbItems = dbCart.filter(item => !item.is_paid);
   const totalUnpaid = unpaidDbItems.reduce((sum, item) => sum + Number(item.price), 0);
   
-  // ΝΕΟ: Υπολογίζουμε ΜΟΝΟ την αξία του φαγητού (αγνοώντας τις αρνητικές πληρωμές)
   const unpaidFoodTotal = unpaidDbItems
     .filter(item => item.price > 0)
     .reduce((sum, item) => sum + Number(item.price), 0);
   
   const selectableItems = unpaidDbItems.filter(item => item.price > 0 && !item.cash_requested);
  
-
   let amountToPay = 0;
   if (paymentMethod === 'full') {
     amountToPay = totalUnpaid;
   } else if (paymentMethod === 'own') {
     amountToPay = unpaidDbItems.filter(i => selectedItemIds.includes(i.id)).reduce((s, i) => s + Number(i.price), 0);
   } else if (paymentMethod === 'equal') {
-    // ΝΕΑ ΜΑΘΗΜΑΤΙΚΑ: Διαιρούμε την αξία του ΦΑΓΗΤΟΥ (π.χ. 20€ / 4), όχι το υπόλοιπο!
     const share = unpaidFoodTotal / splitCount;
-    // Εξασφαλίζουμε ότι το τελευταίο άτομο δεν θα πληρώσει ποτέ παραπάνω από το τελικό υπόλοιπο
     amountToPay = Math.min(share, totalUnpaid); 
   }
-
 
  const handleStripeSetup = async () => {
     if (amountToPay <= 0) return;
     setStripeMode(true);
     
-    // Διορθώνουμε τα δεδομένα που στέλνουμε στην τράπεζα αν είναι κλειδωμένο!
     const currentType = activeSplit ? 'equal' : paymentMethod;
     const currentParts = activeSplit ? activeSplit.total_parts : (paymentMethod === 'equal' ? splitCount : 1);
     
@@ -270,7 +277,7 @@ function MenuContent() {
           tableNumber, 
           itemIds: paymentMethod === 'own' ? selectedItemIds : [],
           splitCount: currentParts,
-          amount: amountToPay // Το στέλνουμε καλού-κακού αν το χρειάζεται το backend
+          amount: amountToPay 
         }),
       });
       const data = await response.json();
@@ -292,7 +299,7 @@ function MenuContent() {
     if (paymentMethod === 'equal') {
       await supabase.from('order_items').insert([{
         table_number: tableNumber,
-        name: '⏳ {t.cash} (Split)',
+        name: `⏳ ${t.cash} (Split)`,
         price: -Math.abs(amountToPay),
         status: 'served',
         is_paid: false,
@@ -304,7 +311,7 @@ function MenuContent() {
     }
 
     alert("🙋‍♂️ Ο σερβιτόρος ειδοποιήθηκε!");
-    window.location.reload(); // Ανανέωση αμέσως!
+    window.location.reload(); 
   };
 
   const addToCart = (id: number) => setCart(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
@@ -341,13 +348,9 @@ function MenuContent() {
     const { error } = await supabase.from('order_items').insert(itemsToInsert);
     
     if (!error) { 
-      // Αδειάζουμε το τοπικό καλάθι και μετά κάνουμε σκληρό refresh
       setCart({});
       setItemNotes({});
       setShowCartModal(false);
-      
-      // Αντί για alert που μπλοκάρει το κινητό, κάνουμε reload.
-      // Έτσι η εφαρμογή ξαναδιαβάζει τη βάση από το μηδέν.
       window.location.reload(); 
     } else {
       console.error("Error inserting:", error);
@@ -359,22 +362,25 @@ function MenuContent() {
   const cartItemCount = Object.values(cart).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB] text-gray-900 pb-32 font-sans selection:bg-black selection:text-white">
+    // ΝΕΟ: Εφαρμόζουμε τη μεταβλητή `--brand` δυναμικά σε όλη τη σελίδα!
+    <div 
+      className="min-h-screen bg-[#F9FAFB] text-gray-900 pb-32 font-sans selection:bg-black selection:text-white"
+      style={{ '--brand': restaurant?.primary_color || '#800020' } as React.CSSProperties}
+    >
       
-      {/* --- STICKY HEADER & CATEGORIES (NEXT-GEN UI) --- */}
       <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-gray-100 transition-all">
         <header className="px-5 py-4 flex justify-between items-center max-w-2xl mx-auto">
           
-          {/* Τίτλος & Ένδειξη Τραπεζιού με παλμό (Pulse) */}
           <div className="flex flex-col gap-0.5">
-            <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">VINTAGE BISTRO</h1>
+            <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight uppercase">
+              {restaurant?.name || "ΦΟΡΤΩΣΗ..."}
+            </h1>
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
               <p className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">{t.table} {tableNumber}</p>
             </div>
           </div>
 
-          {/* Μινιμαλιστικό Κουμπί Γλώσσας (Pill style) */}
           <div className="flex items-center gap-1 bg-white rounded-full p-1 border border-gray-200 shadow-sm">
             <button 
               onClick={() => setLang('gr')}
@@ -391,7 +397,6 @@ function MenuContent() {
           </div>
         </header>
 
-        {/* Κατηγορίες (Pill Tabs) */}
         <div className="px-5 pb-3 max-w-2xl mx-auto">
           <div className="flex gap-2.5 overflow-x-auto no-scrollbar items-center pb-2 px-1">
             {['Προτεινόμενα', 'Σαλάτες', 'Κυρίως', 'Ποτά'].map((cat) => (
@@ -413,11 +418,9 @@ function MenuContent() {
 
       <main className="p-5 max-w-2xl mx-auto space-y-4 pt-4">
 
-       {/* --- CLEAN PREMIUM PRODUCT CARDS --- */}
         {displayedItems.map((item) => (
           <div key={item.id} className="bg-white p-4 rounded-3xl border border-gray-100 flex gap-4 shadow-[0_4px_20px_rgba(0,0,0,0.03)] relative overflow-hidden transition-all hover:shadow-[0_4px_20px_rgba(0,0,0,0.08)]">
             
-            {/* Minimal Image Placeholder */}
             <div className="w-[84px] h-[84px] bg-gray-50 rounded-2xl flex items-center justify-center flex-shrink-0 border border-gray-100">
               <span className="text-3xl opacity-40 grayscale">🍽️</span>
             </div>
@@ -432,7 +435,7 @@ function MenuContent() {
               {cart[item.id] > 0 ? (
                 <div className="flex flex-col items-center justify-between bg-gray-50 rounded-full border border-gray-100 h-full py-1">
                   <button onClick={() => addToCart(item.id)} className="w-8 h-8 flex items-center justify-center text-gray-900 font-bold text-xl active:scale-95">+</button>
-                  <span className="font-bold text-[#800020] text-sm my-1">{cart[item.id]}</span>
+                  <span className="font-bold text-[var(--brand)] text-sm my-1">{cart[item.id]}</span>
                   <button onClick={() => removeFromCart(item.id)} className="w-8 h-8 flex items-center justify-center text-gray-900 font-bold text-xl active:scale-95">-</button>
                 </div>
               ) : (
@@ -444,12 +447,10 @@ function MenuContent() {
           </div>
         ))}
 
-       {/* ΠΑΡΑΓΓΕΛΙΑ ΤΡΑΠΕΖΙΟΥ - PREMIUM UI */}
         {dbCart.length > 0 && (
           <div className="mt-10 bg-white p-6 rounded-[32px] border border-[#EADDCA] shadow-sm">
             <h2 className="text-xs font-black uppercase tracking-widest mb-4 opacity-40">Παραγγελία Τραπεζιού</h2>
             
-            {/* 1. ΛΙΣΤΑ ΜΕ ΤΑ ΠΙΑΤΑ (Μόνο τα θετικά ποσά) */}
             <div className="space-y-2">
               {dbCart.filter(item => item.price > 0).map((item, idx) => (
                 <div key={idx} className="flex justify-between py-1">
@@ -459,7 +460,6 @@ function MenuContent() {
               ))}
             </div>
 
-            {/* Υπολογισμός Αξίας Φαγητού */}
             <div className="flex justify-between items-center mt-4 pt-4 border-t border-dashed border-gray-200">
                <span className="text-sm font-medium text-gray-500">Συνολική Αξία</span>
                <span className="text-sm font-bold text-gray-500">
@@ -467,7 +467,6 @@ function MenuContent() {
                </span>
             </div>
 
-            {/* 2. ΛΙΣΤΑ ΜΕ ΤΙΣ ΠΛΗΡΩΜΕΣ (Μόνο τα αρνητικά ποσά) */}
             {dbCart.some(item => item.price < 0) && (
               <div className="mt-4 bg-green-50 p-4 rounded-2xl border border-green-100">
                 <h3 className="text-[10px] font-bold uppercase tracking-wider text-green-800 opacity-60 mb-2">Ολοκληρωμενες Πληρωμες</h3>
@@ -480,14 +479,13 @@ function MenuContent() {
               </div>
             )}
 
-            {/* 3. ΤΕΛΙΚΟ ΥΠΟΛΟΙΠΟ & ΚΟΥΜΠΙ */}
             {totalUnpaid > 0.05 && (
               <div className="mt-6">
                 <div className="flex justify-between items-end mb-5 px-1">
                   <span className="font-bold text-lg text-gray-900">Τελικό Υπόλοιπο</span>
-                  <span className="font-black text-3xl text-[#800020] leading-none">{totalUnpaid.toFixed(2)}€</span>
+                  <span className="font-black text-3xl text-[var(--brand)] leading-none">{totalUnpaid.toFixed(2)}€</span>
                 </div>
-                <button onClick={() => setShowPaymentOptions(true)} className="w-full bg-[#800020] text-white py-4 rounded-2xl font-bold shadow-[0_8px_20px_rgba(128,0,32,0.2)] active:scale-95 transition-all flex items-center justify-center gap-2">
+                <button onClick={() => setShowPaymentOptions(true)} className="w-full bg-[var(--brand)] text-white py-4 rounded-2xl font-bold shadow-[0_8px_20px_rgba(0,0,0,0.15)] active:scale-95 transition-all flex items-center justify-center gap-2">
                   <span>{t.paymentSelection}</span>
                   <span className="text-xl">→</span>
                 </button>
@@ -497,9 +495,8 @@ function MenuContent() {
         )} 
       </main>
 
-      {/* --- PROFESSIONAL FOOTER --- */}
       <footer className="p-10 pb-40 text-center space-y-4">
-        <div className="flex justify-center gap-6 text-[11px] font-bold text-[#800020] opacity-40 uppercase tracking-widest">
+        <div className="flex justify-center gap-6 text-[11px] font-bold text-[var(--brand)] opacity-40 uppercase tracking-widest">
           <button className="hover:opacity-100">{t.terms}</button>
           <button className="hover:opacity-100">{t.privacy}</button>
           <button className="hover:opacity-100">{t.support}</button>
@@ -509,11 +506,10 @@ function MenuContent() {
         
         <p className="text-[10px] font-medium text-gray-400">
           © 2026 QuickSplit Hospitality Solutions.<br/>
-          Built for <span className="text-[#800020] font-bold">Vintage Bistro</span>
+          Built for <span className="text-[var(--brand)] font-bold">{restaurant?.name || "ΦΟΡΤΩΣΗ..."}</span>
         </p>
       </footer>
 
-       {/* --- CLEAN PREMIUM STICKY BOTTOM BAR --- */}
       {Object.keys(cart).length > 0 && !showCartModal && (
         <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-gray-100 p-4 pb-8 z-50 flex justify-between items-center rounded-t-[32px] shadow-[0_-10px_40px_rgba(0,0,0,0.06)] md:max-w-2xl md:mx-auto animate-in slide-in-from-bottom-10">
           
@@ -526,7 +522,7 @@ function MenuContent() {
 
           <button 
             onClick={() => setShowCartModal(true)}
-            className="bg-[#800020] text-white px-8 py-3.5 rounded-full font-bold text-base shadow-[0_8px_20px_rgba(128,0,32,0.25)] transition-all active:scale-95 flex items-center gap-2"
+            className="bg-[var(--brand)] text-white px-8 py-3.5 rounded-full font-bold text-base shadow-[0_8px_20px_rgba(0,0,0,0.2)] transition-all active:scale-95 flex items-center gap-2"
           >
             {t.pay}
             <span className="bg-white/20 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm">
@@ -560,14 +556,14 @@ function MenuContent() {
                       placeholder={t.notesPlaceholder}
                       value={itemNotes[itemId] || ""}
                       onChange={(e) => setItemNotes(prev => ({ ...prev, [itemId]: e.target.value }))}
-                      className="w-full bg-white border border-gray-200 rounded-xl p-3 text-xs focus:outline-none focus:border-[#800020] transition-colors placeholder-gray-400"
+                      className="w-full bg-white border border-gray-200 rounded-xl p-3 text-xs focus:outline-none focus:border-[var(--brand)] transition-colors placeholder-gray-400"
                     />
                   </div>
                 );
               })}
             </div>
             
-            <button onClick={sendOrder} className="w-full bg-[#800020] text-white py-4 rounded-2xl font-bold shadow-[0_8px_25px_rgba(128,0,32,0.3)] hover:opacity-95 active:scale-[0.99] transition-all text-base"> 
+            <button onClick={sendOrder} className="w-full bg-[var(--brand)] text-white py-4 rounded-2xl font-bold shadow-lg hover:opacity-95 active:scale-[0.99] transition-all text-base"> 
               {t.send} ({totalInCart.toFixed(2)}€)
             </button>
           </div>
@@ -581,16 +577,15 @@ function MenuContent() {
               <button onClick={() => {setShowPaymentOptions(false); setPaymentMethod(null); setStripeMode(false); setClientSecret(null);}} className="font-bold text-sm text-gray-400 hover:text-gray-900 transition-colors uppercase tracking-wider">{t.close}</button>
             </div>
 
-            {/* --- ΣΤΑΔΙΟ 2: ΥΠΑΡΧΕΙ ΗΔΗ ΚΛΕΙΔΩΜΕΝΟΣ ΡΕΦΕΝΕΣ --- */}
             {activeSplit ? (
               <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100 mt-2 mb-6 text-center">
-                <div className="mb-4 inline-flex items-center justify-center w-12 h-12 bg-[#800020]/10 text-[#800020] rounded-full text-2xl">
+                <div className="mb-4 inline-flex items-center justify-center w-12 h-12 bg-gray-100 text-[var(--brand)] rounded-full text-2xl">
                   🔒
                 </div>
                 <h3 className="text-xl font-black text-gray-900 mb-2">Λογαριασμός Κλειδωμένος</h3>
                 
                 <p className="text-sm font-bold text-gray-900 mb-1">
-                  Πλήρωσαν <span className="text-[#800020]">{activeSplit.paid_parts}</span> από <span className="text-[#800020]">{activeSplit.total_parts}</span> άτομα
+                  Πλήρωσαν <span className="text-[var(--brand)]">{activeSplit.paid_parts}</span> από <span className="text-[var(--brand)]">{activeSplit.total_parts}</span> άτομα
                 </p>
                 <p className="text-xs text-gray-500 mb-6 font-medium">
                   Απομένουν: {(Number(activeSplit.split_amount) * (activeSplit.total_parts - activeSplit.paid_parts)).toFixed(2)}€ για το τραπέζι
@@ -602,7 +597,7 @@ function MenuContent() {
                 </div>
 
                 {!stripeMode ? (
-                  <button onClick={handleStripeSetup} className="w-full bg-[#800020] text-white py-4 rounded-2xl font-bold text-lg shadow-[0_8px_25px_rgba(128,0,32,0.25)] hover:opacity-95 active:scale-[0.99] transition-all">
+                  <button onClick={handleStripeSetup} className="w-full bg-[var(--brand)] text-white py-4 rounded-2xl font-bold text-lg shadow-lg hover:opacity-95 active:scale-[0.99] transition-all">
                     Πληρωμή ({Number(activeSplit.split_amount).toFixed(2)}€)
                   </button>
                 ) : (
@@ -612,19 +607,15 @@ function MenuContent() {
                         <UnifiedCheckoutForm
                           amount={Number(activeSplit.split_amount).toFixed(2)}
                          onSuccess={async () => {
-                          // 1. Καλούμε την RPC συνάρτηση για να αυξηθεί το paid_parts με απόλυτη ασφάλεια στη βάση
                           await supabase.rpc('increment_split_parts', { split_id: activeSplit.id });
 
-                          // 2. Τραβάμε τα ολόφρεσκα δεδομένα του ρεφενέ κατευθείαν από τη βάση
                           const { data: updatedSplit } = await supabase
                             .from('active_splits')
                             .select('*')
                             .eq('id', activeSplit.id)
                             .single();
 
-                          // 3. Ελέγχουμε αν με αυτή την πληρωμή εξοφλήθηκε όλο το ποσό
                           if (updatedSplit && Number(updatedSplit.paid_parts) >= Number(updatedSplit.total_parts)) {
-                            // Πλήρωσε και ο τελευταίος: Εξόφληση πιάτων και διαγραφή ρεφενέ
                             const unpaidIds = unpaidDbItems.map(i => i.id);
                             await supabase.from('order_items').update({ is_paid: true }).in('id', unpaidIds);
                             await supabase.from('active_splits').delete().eq('id', activeSplit.id);
@@ -637,12 +628,11 @@ function MenuContent() {
                       </Elements>
                     </div>
                   ) : (
-                    <div className="py-4 text-center text-sm font-bold text-[#800020] animate-pulse">{t.bankConnecting}</div>
+                    <div className="py-4 text-center text-sm font-bold text-[var(--brand)] animate-pulse">{t.bankConnecting}</div>
                   )
                 )}
               </div>
             ) : (
-              /* --- ΣΤΑΔΙΟ 1: ΝΕΑ ΠΛΗΡΩΜΗ (ΕΠΙΛΟΓΗ ΜΕΘΟΔΟΥ) --- */
               <div className="payment-options-container">
                 {!paymentMethod ? (
                   <div className="flex flex-col gap-3">
@@ -662,7 +652,6 @@ function MenuContent() {
                       ← {t.back}
                     </button>
                     
-                    {/* UI για 'Δικά μου' */}
                     {paymentMethod === 'own' && (
                       <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 mb-6 space-y-1 max-h-[30vh] overflow-y-auto">
                         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-2">{t.chooseWhatToPay}</p>
@@ -671,7 +660,7 @@ function MenuContent() {
                             <div className="flex items-center gap-3">
                               <input type="checkbox" checked={selectedItemIds.includes(item.id)} onChange={() => {
                                 setSelectedItemIds(prev => prev.includes(item.id) ? prev.filter(id => id !== item.id) : [...prev, item.id]);
-                              }} className="w-5 h-5 accent-[#800020]" />
+                              }} className="w-5 h-5 accent-[var(--brand)]" />
                               <span className="font-medium text-gray-900">{item.name}</span>
                             </div>
                             <span className="font-bold text-gray-900">{Number(item.price).toFixed(2)}€</span>
@@ -680,7 +669,6 @@ function MenuContent() {
                       </div>
                     )}
 
-                    {/* UI για 'Ρεφενέ' */}
                     {paymentMethod === 'equal' && (
                       <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100 mb-6 flex justify-between items-center">
                         <span className="font-bold text-gray-900">{t.people} <span className="text-xs font-normal text-gray-400">({t.remaining}: {totalUnpaid.toFixed(2)}€)</span></span>
@@ -694,7 +682,7 @@ function MenuContent() {
 
                     <div className="flex flex-col gap-3 pt-2">
                       {!stripeMode ? (
-                        <button onClick={handleStripeSetup} className="w-full bg-[#800020] text-white py-4 rounded-2xl font-bold shadow-[0_8px_25px_rgba(128,0,32,0.25)]">
+                        <button onClick={handleStripeSetup} className="w-full bg-[var(--brand)] text-white py-4 rounded-2xl font-bold shadow-lg">
                           💳 {t.pay} {amountToPay.toFixed(2)}€
                         </button>
                       ) : (
@@ -706,17 +694,14 @@ function MenuContent() {
                                 onSuccess={async () => {
                                   
                                       if (paymentMethod === 'own') {
-                                        // Πληρώνει τα δικά του
                                         await supabase.from('order_items').update({ is_paid: true }).in('id', selectedItemIds);
                                       } else if (paymentMethod === 'full') {
-                                        // Πληρώνει τα πάντα
                                         const unpaidIds = unpaidDbItems.map(i => i.id);
                                         await supabase.from('order_items').update({ is_paid: true }).in('id', unpaidIds);
                                       } else if (paymentMethod === 'equal') {
-                                          // 1. Κάνουμε την εγγραφή και βάζουμε το "insertError" για να πιάσουμε το σφάλμα!
                                           const { error: insertError } = await supabase.from('order_items').insert([{
                                             table_number: tableNumber,
-                                            item_id: 0, // Βάζουμε ένα dummy ID σε περίπτωση που η βάση το απαιτεί
+                                            item_id: 0,
                                             name: `✅ Έναντι Λογαριασμού (Κάρτα)`,
                                             price: -Math.abs(amountToPay),
                                             status: 'served',
@@ -724,13 +709,11 @@ function MenuContent() {
                                             cash_requested: false
                                           }]);
 
-                                          // Αν η βάση αρνηθεί την εγγραφή, θα μας πετάξει το λάθος στα μούτρα!
                                           if (insertError) {
                                             alert("Σφάλμα από τη βάση δεδομένων: " + insertError.message);
-                                            return; // Σταματάμε τη διαδικασία, δεν πάμε στο "Επιτυχώς"
+                                            return;
                                           }
 
-                                          // ΕΛΕΓΧΟΣ: Μήπως εξοφλήθηκε πλήρως το τραπέζι;
                                           const { data: checkItems } = await supabase
                                             .from('order_items')
                                             .select('*')
@@ -746,10 +729,7 @@ function MenuContent() {
                                           }
                                         }
 
-                                        // Αν έφτασε μέχρι εδώ, σημαίνει ότι η βάση το αποθήκευσε πραγματικά!
                                         alert("✅ Η πληρωμή αποθηκεύτηκε επιτυχώς!");
-
-                                        // Σωστό Reload: Κρατάει το τραπέζι και βάζει timestamp για να σπάσει την cache
                                         const timestamp = new Date().getTime();
                                         window.location.href = `${window.location.pathname}?table=${tableNumber}&t=${timestamp}`;
 
@@ -758,7 +738,7 @@ function MenuContent() {
                             </Elements>
                           </div>
                         ) : (
-                          <div className="py-4 text-center text-sm font-bold text-[#800020] animate-pulse">{t.bankConnecting}</div>
+                          <div className="py-4 text-center text-sm font-bold text-[var(--brand)] animate-pulse">{t.bankConnecting}</div>
                         )
                       )}
                       
@@ -780,7 +760,7 @@ function MenuContent() {
 
 export default function MenuPage() { 
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-[#800020] font-bold">Φόρτωση...</div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-900 font-bold">Φόρτωση...</div>}>
       <MenuContent />
     </Suspense>
   ); 
