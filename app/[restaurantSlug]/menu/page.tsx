@@ -73,7 +73,6 @@ export const dynamic = 'force-dynamic';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY as string);
 
-const [menuItems, setMenuItems] = useState<any[]>([]);
 
 function UnifiedCheckoutForm({ onSuccess, amount }: { onSuccess: () => void, amount: string }) {
   const stripe = useStripe();
@@ -140,6 +139,8 @@ function UnifiedCheckoutForm({ onSuccess, amount }: { onSuccess: () => void, amo
 }
 
 function MenuContent() {
+
+  const [menuItems, setMenuItems] = useState<any[]>([]);
 
   const [lang, setLang] = useState<'gr' | 'en'>('gr');
   const t = translations[lang];
