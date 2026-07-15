@@ -200,24 +200,24 @@ function MenuContent() {
   const displayedItems = selectedCategory === 'Προτεινόμενα' ? menuItems : menuItems.filter(item => item.category === selectedCategory);
   const [activeSplit, setActiveSplit] = useState<any>(null);
   
-  useEffect(() => {
+ useEffect(() => {
     if (!tableNumber) return;
 
-   const fetchCartAndSplit = async () => {
+    let isClosing = false; // ΝΕΟ: Ο διακόπτης μας!
+
+    const fetchCartAndSplit = async () => {
       const currentTable = String(tableNumber);
-      
       const { data, error } = await supabase
         .from('order_items')
         .select('*')
         .eq('table_number', currentTable)
-        .neq('status', 'archived'); // <-- ΑΥΤΟ ΠΡΟΣΘΕΤΟΥΜΕ
+        .neq('status', 'archived');
 
       if (error) {
         console.error("Σφάλμα Realtime Cart:", error);
       } else if (data) {
         setDbCart(data);
       }
-      
       setActiveSplit(null);
     };
 
@@ -229,18 +229,25 @@ function MenuContent() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'order_items', filter: `table_number=eq.${tableNumber}` },
         (payload) => {
-          // Αν ο admin μόλις πάτησε το κλείσιμο (archived)
           if (payload.eventType === 'UPDATE' && payload.new.status === 'archived') {
             
-            setCart({}); // Αδειάζει τα πιάτα που ίσως ετοιμαζόταν να παραγγείλει
-            setDbCart([]); // Αδειάζει τα πληρωμένα πιάτα
-            setShowCartModal(false);
-            setShowPaymentOptions(false);
-            alert("Το τραπέζι έκλεισε και εξοφλήθηκε. Σας ευχαριστούμε πολύ!");
-            
+            // Ελέγχουμε αν είναι η πρώτη φορά που χτυπάει!
+            if (!isClosing) {
+              isClosing = true; // Κατεβάζουμε τον διακόπτη για να μην ξαναμπεί εδώ
+
+              setCart({});
+              setDbCart([]);
+              setShowCartModal(false);
+              setShowPaymentOptions(false);
+              
+              alert("Το τραπέζι έκλεισε και εξοφλήθηκε. Σας ευχαριστούμε πολύ!");
+            }
+
           } else {
-            // Για οποιαδήποτε άλλη αλλαγή (π.χ. νέο πιάτο, αλλαγή σε "ΕΤΟΙΜΟ"), απλά ανανεώνει το καλάθι
-            fetchCartAndSplit();
+            // Αν δεν είμαστε σε διαδικασία κλεισίματος, ανανέωσε το καλάθι κανονικά
+            if (!isClosing) {
+              fetchCartAndSplit();
+            }
           }
         }
       )
