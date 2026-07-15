@@ -203,13 +203,14 @@ function MenuContent() {
   useEffect(() => {
     if (!tableNumber) return;
 
-    const fetchCartAndSplit = async () => {
+   const fetchCartAndSplit = async () => {
       const currentTable = String(tableNumber);
       
       const { data, error } = await supabase
         .from('order_items')
         .select('*')
-        .eq('table_number', currentTable);
+        .eq('table_number', currentTable)
+        .neq('status', 'archived'); // <-- ΑΥΤΟ ΠΡΟΣΘΕΤΟΥΜΕ
 
       if (error) {
         console.error("Σφάλμα Realtime Cart:", error);
@@ -224,35 +225,22 @@ function MenuContent() {
 
     const channel = supabase
       .channel(`table_${tableNumber}_sync`)
-      // 1ος Listener: Ακούει για νέα πιάτα στο τραπέζι (όπως το είχες)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'order_items', filter: `table_number=eq.${tableNumber}` },
-        () => {
-          fetchCartAndSplit();
-        }
-      )
-      // 2ος Listener (ΝΕΟ): Ακούει τον admin όταν κλείνει το τραπέζι στον πίνακα active_splits
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'active_splits', filter: `table_id=eq.${tableNumber}` },
         (payload) => {
-          // Αν ο admin άλλαξε το status σε closed ή completed (ανάλογα τι χρησιμοποιείς)
-          if (payload.new.status === 'closed' || payload.new.status === 'completed') {
+          // Αν ο admin μόλις πάτησε το κλείσιμο (archived)
+          if (payload.eventType === 'UPDATE' && payload.new.status === 'archived') {
             
-            // 1. Αδειάζουμε το τοπικό καλάθι (state)
-            setCart({});
-            setDbCart([]);
-            
-            // 2. Κλείνουμε τα modal αν ήταν ανοιχτά
+            setCart({}); // Αδειάζει τα πιάτα που ίσως ετοιμαζόταν να παραγγείλει
+            setDbCart([]); // Αδειάζει τα πληρωμένα πιάτα
             setShowCartModal(false);
             setShowPaymentOptions(false);
-            
-            // 3. Ενημερώνουμε τον πελάτη
             alert("Το τραπέζι έκλεισε και εξοφλήθηκε. Σας ευχαριστούμε πολύ!");
             
-            // 4. (Προαιρετικό) Κάνουμε refresh τη σελίδα για να καθαρίσει τελείως
-            // window.location.reload(); 
+          } else {
+            // Για οποιαδήποτε άλλη αλλαγή (π.χ. νέο πιάτο, αλλαγή σε "ΕΤΟΙΜΟ"), απλά ανανεώνει το καλάθι
+            fetchCartAndSplit();
           }
         }
       )
