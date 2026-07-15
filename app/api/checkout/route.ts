@@ -17,16 +17,27 @@ export async function POST(req: Request) {
     let finalAmount = 0;
     let webhookType = type; 
 
-    // ΚΑΤΑΡΓΗΣΑΜΕ ΤΟ active_splits! Δεν ψάχνουμε πλέον για κλειδωμένα τραπέζια.
-
     if (type === 'own' && itemIds && itemIds.length > 0) {
-      const { data, error } = await supabase.from('order_items').select('price').in('id', itemIds).eq('is_paid', false);
+      // ΠΡΟΣΘΗΚΗ: Αγνοούμε τα archived
+      const { data, error } = await supabase
+        .from('order_items')
+        .select('price')
+        .in('id', itemIds)
+        .eq('is_paid', false)
+        .neq('status', 'archived'); 
+        
       if (error) throw error;
       finalAmount = data?.reduce((sum, item) => sum + Number(item.price), 0) || 0;
       
     } else if (type === 'full' || type === 'equal') {
-      // Παίρνουμε ΟΛΑ τα απλήρωτα είδη (θετικά πιάτα ΚΑΙ αρνητικές πληρωμές)
-      const { data, error } = await supabase.from('order_items').select('price').eq('table_number', tableNumber).eq('is_paid', false);
+      // ΠΡΟΣΘΗΚΗ: Αγνοούμε τα archived
+      const { data, error } = await supabase
+        .from('order_items')
+        .select('price')
+        .eq('table_number', tableNumber)
+        .eq('is_paid', false)
+        .neq('status', 'archived');
+        
       if (error) throw error;
 
       // 1. Το Τελικό Υπόλοιπο (Φαγητό ΜΕΙΟΝ Πληρωμές)
@@ -42,7 +53,7 @@ export async function POST(req: Request) {
         const share = unpaidFoodTotal / splitCount;
         // Ποτέ δεν χρεώνουμε παραπάνω από το τελικό υπόλοιπο
         finalAmount = Math.min(share, totalRemaining);
-        webhookType = 'equal'; // Το Webhook θα το αγνοήσει, γιατί τη δουλειά την κάνει πλέον το νέο μας Frontend!
+        webhookType = 'equal'; 
       }
     }
 
