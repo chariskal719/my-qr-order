@@ -224,11 +224,36 @@ function MenuContent() {
 
     const channel = supabase
       .channel(`table_${tableNumber}_sync`)
+      // 1ος Listener: Ακούει για νέα πιάτα στο τραπέζι (όπως το είχες)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'order_items', filter: `table_number=eq.${tableNumber}` },
         () => {
           fetchCartAndSplit();
+        }
+      )
+      // 2ος Listener (ΝΕΟ): Ακούει τον admin όταν κλείνει το τραπέζι στον πίνακα active_splits
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'active_splits', filter: `table_id=eq.${tableNumber}` },
+        (payload) => {
+          // Αν ο admin άλλαξε το status σε closed ή completed (ανάλογα τι χρησιμοποιείς)
+          if (payload.new.status === 'closed' || payload.new.status === 'completed') {
+            
+            // 1. Αδειάζουμε το τοπικό καλάθι (state)
+            setCart({});
+            setDbCart([]);
+            
+            // 2. Κλείνουμε τα modal αν ήταν ανοιχτά
+            setShowCartModal(false);
+            setShowPaymentOptions(false);
+            
+            // 3. Ενημερώνουμε τον πελάτη
+            alert("Το τραπέζι έκλεισε και εξοφλήθηκε. Σας ευχαριστούμε πολύ!");
+            
+            // 4. (Προαιρετικό) Κάνουμε refresh τη σελίδα για να καθαρίσει τελείως
+            // window.location.reload(); 
+          }
         }
       )
       .subscribe();
