@@ -66,8 +66,14 @@ export default function KitchenDashboard() {
     window.print();
   };
 
-  // 1. Κρατάμε ΜΟΝΟ τις παραγγελίες που δεν είναι έτοιμες
-  const activeOrders = orders.filter(order => order.status !== 'ready');
+  // 1. Κρατάμε ΜΟΝΟ τις παραγγελίες που είναι σε εκκρεμότητα. 
+  // Πετάμε έξω τα έτοιμα ('ready') ΚΑΙ όσα έχει κλείσει ο Admin ('paid', 'closed', 'completed')
+  const activeOrders = orders.filter(order => 
+    order.status !== 'ready' && 
+    order.status !== 'paid' && 
+    order.status !== 'closed' && 
+    order.status !== 'completed'
+  );
 
   // 2. Ομαδοποίηση ανά τραπέζι
   const tables = activeOrders.reduce((acc: any, order) => {
