@@ -2,8 +2,24 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../../utils/supabase'; // Προσοχή να είναι σωστό το path σου
+import { useRouter } from 'next/navigation';
+import { createBrowserClient } from '@supabase/ssr';
 
 export default function KitchenDashboard() {
+
+    const router = useRouter();
+
+    // Αρχικοποίηση του Auth Client για την κουζίνα
+    const supabaseAuth = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+
+    const handleLogout = async () => {
+      await supabaseAuth.auth.signOut(); // Σβήνει το session
+      router.refresh();                  // Ο φρουρός (middleware) αναλαμβάνει τα υπόλοιπα αυτόματα!
+    };
+
   const [pendingOrders, setPendingOrders] = useState<any[]>([]);
 
   useEffect(() => {
@@ -58,9 +74,20 @@ export default function KitchenDashboard() {
     // Προσθέσαμε print:bg-white print:text-black για να τυπώνεται σωστά στο χαρτί
     <div className="min-h-screen bg-gray-900 print:bg-white p-8 print:p-0 text-white print:text-black">
       <div className="max-w-6xl mx-auto">
-        <header className="mb-10 border-b border-gray-700 print:border-black pb-4 print:hidden">
-          <h1 className="text-4xl font-black tracking-tight">👨‍🍳 Κουζίνα <span className="text-orange-500 text-lg block">Ενεργές Παραγγελίες</span></h1>
-        </header>
+        
+        <header className="mb-8 flex justify-between items-center border-b border-slate-700 pb-4">
+        <div>
+          <h1 className="text-3xl font-black">ΚΟΥΖΙΝΑ</h1>
+          <p className="text-slate-400 text-sm mt-1">Νέες παραγγελίες σε πραγματικό χρόνο</p>
+        </div>
+        
+        <button 
+          onClick={handleLogout} 
+          className="bg-red-50 text-red-600 px-5 py-2.5 rounded-2xl font-bold text-sm hover:bg-red-100 active:scale-[0.98] transition-all"
+        >
+          Αποσύνδεση ➔
+        </button>
+      </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 print:block print:w-full">
           {Object.keys(tables).map((tableNum) => (
