@@ -3,9 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
+    request: { headers: request.headers },
   });
 
   const supabase = createServerClient(
@@ -13,14 +11,10 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
+        getAll() { return request.cookies.getAll(); },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({
-            request,
-          });
+          response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           );
@@ -31,22 +25,23 @@ export async function middleware(request: NextRequest) {
 
   const { data: { session } } = await supabase.auth.getSession();
   const url = request.nextUrl.clone();
+  const pathname = url.pathname;
 
-  // Αν ΔΕΝ είναι συνδεδεμένος και πάει σε Admin ή Kitchen -> τον στέλνουμε στο /login
-  if (!session && (url.pathname.startsWith('/admin') || url.pathname.startsWith('/kitchen'))) {
+  // Ελέγχουμε αν το URL περιέχει μέσα το /admin ή το /kitchen
+  const isProtected = pathname.includes('/admin') || pathname.includes('/kitchen');
+
+  // Αν πάει σε Admin/Kitchen ΚΑΙ δεν είναι συνδεδεμένος -> Πάει Login
+  if (!session && isProtected) {
     url.pathname = '/login';
-    return NextResponse.redirect(url);
-  }
-
-  // Αν ΕΙΝΑΙ ήδη συνδεδεμένος και πάει στο /login -> τον στέλνουμε κατευθείαν στο /admin
-  if (session && url.pathname.startsWith('/login')) {
-    url.pathname = '/admin';
     return NextResponse.redirect(url);
   }
 
   return response;
 }
 
+// Ο φρουρός πλέον σκανάρει όλο το site εκτός από τις εικόνες και τα εσωτερικά αρχεία
 export const config = {
-  matcher: ['/admin/:path*', '/kitchen/:path*', '/login'],
+  matcher: [
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+  ],
 };

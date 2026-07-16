@@ -32,7 +32,7 @@ export default function LoginPage() {
       setIsLoading(false);
     } else {
       // Μόλις συνδεθεί επιτυχώς, το στέλνουμε στο admin
-      router.push('/admin');
+      router.push('/');
       router.refresh();
     }
   };
