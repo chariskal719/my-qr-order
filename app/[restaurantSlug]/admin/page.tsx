@@ -2,10 +2,28 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../../utils/supabase';
+import { useRouter } from 'next/navigation';
+import { createBrowserClient } from '@supabase/ssr';
 
 export const dynamic = 'force-dynamic';
 
 export default function AdminPage() {
+
+const router = useRouter();
+
+// Αρχικοποίηση του Supabase Client για τον browser
+// Αρχικοποίηση του Auth Client
+const supabaseAuth = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+const handleLogout = async () => {
+  await supabaseAuth.auth.signOut(); // <-- Χρησιμοποιούμε το supabaseAuth
+  router.push('/login');
+  router.refresh();
+};
+
   const [orders, setOrders] = useState<any[]>([]);
 
   useEffect(() => {
@@ -52,11 +70,19 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-[#0F172A] text-white p-6 font-sans">
+      
       <header className="mb-8 flex justify-between items-center border-b border-slate-700 pb-4">
-        <div>
-          <h1 className="text-3xl font-black">KITCHEN & POS</h1>
-          <p className="text-slate-400 text-sm mt-1">Σύστημα διαχείρισης σε πραγματικό χρόνο</p>
-        </div>
+          <div>
+            <h1 className="text-3xl font-black">KITCHEN & POS</h1>
+            <p className="text-slate-400 text-sm mt-1">Σύστημα διαχείρισης σε πραγματικό χρόνο</p>
+          </div>
+          
+          <button 
+            onClick={handleLogout} 
+            className="bg-red-50 text-red-600 px-5 py-2.5 rounded-2xl font-bold text-sm hover:bg-red-100 active:scale-[0.98] transition-all"
+          >
+            Αποσύνδεση ➔
+          </button>
       </header>
 
       <main className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
