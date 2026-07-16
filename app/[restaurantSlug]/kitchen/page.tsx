@@ -22,7 +22,7 @@ export default function KitchenDashboard() {
       router.refresh();                  // Ο φρουρός (middleware) αναλαμβάνει τα υπόλοιπα αυτόματα!
     };
 
-  const [pendingOrders, setPendingOrders] = useState<any[]>([]);
+  
 
   useEffect(() => {
   // Δημιουργούμε το αντικείμενο του ήχου (δείχνει στο public/bell.mp3)
@@ -66,8 +66,11 @@ export default function KitchenDashboard() {
     window.print();
   };
 
-  // Ομαδοποίηση ανά τραπέζι
-  const tables = pendingOrders.reduce((acc: any, order) => {
+  // 1. Κρατάμε ΜΟΝΟ τις παραγγελίες που δεν είναι έτοιμες
+  const activeOrders = orders.filter(order => order.status !== 'ready');
+
+  // 2. Ομαδοποίηση ανά τραπέζι
+  const tables = activeOrders.reduce((acc: any, order) => {
     if (!acc[order.table_number]) acc[order.table_number] = [];
     acc[order.table_number].push(order);
     return acc;
