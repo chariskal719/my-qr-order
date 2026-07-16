@@ -19,8 +19,13 @@ const supabaseAuth = createBrowserClient(
 );
 
 const handleLogout = async () => {
-  await supabaseAuth.auth.signOut(); // <-- Χρησιμοποιούμε το supabaseAuth
-  router.push('/login');
+  await supabaseAuth.auth.signOut();
+  
+  // Παίρνουμε το τρέχον URL (π.χ. /memorable-voyage/admin)
+  const currentPath = window.location.pathname; 
+  
+  // Στέλνουμε τον χρήστη στο login, λέγοντάς του να επιστρέψει εδώ όταν ξανασυνδεθεί!
+  router.push(`/login?redirectTo=${encodeURIComponent(currentPath)}`);
   router.refresh();
 };
 
