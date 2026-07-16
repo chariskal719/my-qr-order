@@ -7,6 +7,8 @@ import { createBrowserClient } from '@supabase/ssr';
 
 export default function KitchenDashboard() {
 
+    const [orders, setOrders] = useState<any[]>([]);
+
     const router = useRouter();
 
     // Αρχικοποίηση του Auth Client για την κουζίνα
@@ -23,36 +25,37 @@ export default function KitchenDashboard() {
   const [pendingOrders, setPendingOrders] = useState<any[]>([]);
 
   useEffect(() => {
-    // Φέρνουμε ΜΟΝΟ όσα είναι σε αναμονή ΚΑΙ είναι φαγητά (price > 0) αγνοώντας τις πληρωμές
-    const fetchOrders = async () => {
-      const { data } = await supabase
-        .from('order_items')
-        .select('*')
-        .eq('status', 'pending')
-        .gt('price', 0); // ΤΟ ΣΗΜΑΝΤΙΚΟΤΕΡΟ ΦΙΛΤΡΟ!
+  // Δημιουργούμε το αντικείμενο του ήχου (δείχνει στο public/bell.mp3)
+  const notificationSound = new Audio('/bell.mp3');
+
+  const fetchOrders = async () => {
+    const { data } = await supabase.from('order_items').select('*').order('id', { ascending: true });
+    if (data) setOrders(data);
+  };
+  fetchOrders();
+
+  const channel = supabase.channel('kitchen_realtime')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, payload => {
       
-      if (data) setPendingOrders(data);
-    };
-    fetchOrders();
+      // 🔔 ΑΝ Η ΑΛΛΑΓΗ ΕΙΝΑΙ ΝΕΑ ΠΑΡΑΓΓΕΛΙΑ (INSERT), ΠΑΙΞΕ ΤΟΝ ΗΧΟ!
+      if (payload.eventType === 'INSERT') {
+        notificationSound.play().catch(err => {
+          console.log("Ο browser μπλόκαρε την αυτόματη αναπαραγωγή ήχου μέχρι ο χρήστης να αλληλεπιδράσει με τη σελίδα:", err);
+        });
+        
+        setOrders(prev => [...prev, payload.new]);
+      }
+      
+      if (payload.eventType === 'UPDATE') {
+        setOrders(prev => prev.map(item => item.id === payload.new.id ? payload.new : item));
+      }
+    })
+    .subscribe();
 
-    const channel = supabase
-      .channel('kitchen_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, (payload) => {
-        if (payload.eventType === 'INSERT' && payload.new.status === 'pending' && payload.new.price > 0) {
-          setPendingOrders((prev) => [...prev, payload.new]);
-        }
-        if (payload.eventType === 'UPDATE') {
-          if (payload.new.status === 'ready') {
-            setPendingOrders((prev) => prev.filter(o => o.id !== payload.new.id));
-          }
-        }
-        if (payload.eventType === 'DELETE') {
-          setPendingOrders((prev) => prev.filter(o => o.id !== payload.old.id));
-        }
-      }).subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, []);
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, []);
 
   const markAsReady = async (id: number) => {
     const { error } = await supabase.from('order_items').update({ status: 'ready' }).eq('id', id);
