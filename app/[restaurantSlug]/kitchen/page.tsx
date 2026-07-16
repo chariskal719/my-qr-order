@@ -66,13 +66,10 @@ export default function KitchenDashboard() {
     window.print();
   };
 
-  // 1. Κρατάμε ΜΟΝΟ τις παραγγελίες που είναι σε εκκρεμότητα. 
-  // Πετάμε έξω τα έτοιμα ('ready') ΚΑΙ όσα έχει κλείσει ο Admin ('paid', 'closed', 'completed')
+  // Κρατάμε ΜΟΝΟ όσα δεν είναι έτοιμα ΚΑΙ δεν έχουν αρχειοθετηθεί/κλείσει από τον Admin!
   const activeOrders = orders.filter(order => 
     order.status !== 'ready' && 
-    order.status !== 'paid' && 
-    order.status !== 'closed' && 
-    order.status !== 'completed'
+    order.status !== 'archived'
   );
 
   // 2. Ομαδοποίηση ανά τραπέζι
