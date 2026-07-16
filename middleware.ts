@@ -27,21 +27,25 @@ export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone();
   const pathname = url.pathname;
 
-  // Ελέγχουμε αν το URL περιέχει μέσα το /admin ή το /kitchen
   const isProtected = pathname.includes('/admin') || pathname.includes('/kitchen');
 
-  // Αν πάει σε Admin/Kitchen ΚΑΙ δεν είναι συνδεδεμένος -> Πάει Login
+  // 1. Αν δεν είναι συνδεδεμένος και πάει στο Admin -> Πάει Login και θυμάται πού ήθελε να πάει!
   if (!session && isProtected) {
     url.pathname = '/login';
+    url.searchParams.set('redirectTo', pathname); // <--- ΕΔΩ ΓΙΝΕΤΑΙ Η ΜΑΓΕΙΑ
+    return NextResponse.redirect(url);
+  }
+
+  // 2. Αν είναι ήδη συνδεδεμένος και πάει να μπει στο /login
+  if (session && pathname === '/login') {
+    const redirectTo = request.nextUrl.searchParams.get('redirectTo') || '/';
+    url.pathname = redirectTo;
     return NextResponse.redirect(url);
   }
 
   return response;
 }
 
-// Ο φρουρός πλέον σκανάρει όλο το site εκτός από τις εικόνες και τα εσωτερικά αρχεία
 export const config = {
-  matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
-  ],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 };

@@ -1,17 +1,20 @@
 "use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 
-export default function LoginPage() {
+function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Διαβάζει πού ήθελες να πας, αλλιώς σε πάει στην αρχική
+  const redirectTo = searchParams.get('redirectTo') || '/'; 
 
-  // Φτιάχνουμε τον client με το νέο, ασφαλές πακέτο SSR
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -31,8 +34,8 @@ export default function LoginPage() {
       setError("❌ Λάθος email ή κωδικός πρόσβασης.");
       setIsLoading(false);
     } else {
-      // Μόλις συνδεθεί επιτυχώς, το στέλνουμε στο admin
-      router.push('/');
+      // Σε στέλνει πίσω στο Admin του ΣΥΓΚΕΚΡΙΜΕΝΟΥ μαγαζιού!
+      router.push(redirectTo);
       router.refresh();
     }
   };
@@ -85,5 +88,14 @@ export default function LoginPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+// Η Next.js απαιτεί το Suspense όταν διαβάζουμε URL parameters (searchParams)
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#F9FAFB] flex items-center justify-center font-bold">Φόρτωση...</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }
