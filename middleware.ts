@@ -29,22 +29,23 @@ export async function middleware(request: NextRequest) {
 
   const isProtected = pathname.includes('/admin') || pathname.includes('/kitchen');
 
-  // 1. Αν δεν είναι συνδεδεμένος και πάει στο Admin -> Πάει Login και θυμάται πού ήθελε να πάει!
-  if (!session && isProtected) {
+  // 1. ΑΝ πάει να μπει σε Admin/Kitchen ΚΑΙ δεν είναι συνδεδεμένος -> Τον πετάμε στο Login
+    if (!session && isProtected) {
     url.pathname = '/login';
-    url.searchParams.set('redirectTo', pathname); // <--- ΕΔΩ ΓΙΝΕΤΑΙ Η ΜΑΓΕΙΑ
+    url.searchParams.set('redirectTo', pathname);
     return NextResponse.redirect(url);
-  }
+    }
 
-  // 2. Αν είναι ήδη συνδεδεμένος και πάει να μπει στο /login
-  if (session && pathname === '/login') {
+    // 2. ΑΝ είναι ήδη συνδεδεμένος και πάει να μπει στο /login -> Τον στέλνουμε στο Admin
+    if (session && pathname === '/login') {
     const redirectTo = request.nextUrl.searchParams.get('redirectTo') || '/';
     url.pathname = redirectTo;
     return NextResponse.redirect(url);
-  }
+    }
 
-  return response;
-}
+    // 3. Για οποιαδήποτε άλλη σελίδα (π.χ. /menu, /checkout), τον αφήνουμε να περάσει ελεύθερα!
+    return response;
+    }
 
 export const config = {
   matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
